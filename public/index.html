@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>📸 MEGA Photo Drop</title>
+  <style>
+    body { font-family:sans-serif; text-align:center; padding:2rem; background:#f9f9f9 }
+    .container { max-width:800px; margin:0 auto; background:white; padding:2rem; border-radius:8px }
+    .gallery { display:grid; grid-template-columns:repeat(auto-fill,150px); gap:8px; justify-content:center; margin-top:1rem }
+    .gallery img { width:150px; height:150px; object-fit:cover; border-radius:4px }
+    .btn { margin:1rem; padding:0.75rem 1.5rem; background:#007EE5; color:white; border:none; border-radius:5px; cursor:pointer }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📤 Upload Photos</h1>
+    <input type="file" id="fileInput">
+    <button class="btn" id="uploadBtn">Upload</button>
+
+    <h2>📂 Gallery</h2>
+    <div class="gallery" id="gallery"></div>
+
+    <button class="btn" id="downloadAll">⬇️ Download All</button>
+  </div>
+
+  <script>
+    async function fetchGallery() {
+      const r = await fetch('/api/files');
+      const { files } = await r.json();
+      const g = document.getElementById('gallery');
+      g.innerHTML = '';
+      files.forEach(f => {
+        const a = document.createElement('a');
+        a.href = f.link;
+        a.target = '_blank';
+        const img = document.createElement('img');
+        img.src = f.link + '#!'; // forcing MEGA thumbnail view
+        img.alt = f.name;
+        a.appendChild(img);
+        g.appendChild(a);
+      });
+    }
+
+    document.getElementById('uploadBtn').onclick = async () => {
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) return alert('Choose a file first');
+      const data = new FormData();
+      data.append('file', file);
+      await fetch('/api/upload', { method:'POST', body:data });
+      fetchGallery();
+    };
+
+    document.getElementById('downloadAll').onclick = () => {
+      window.location.href = '/api/download-all';
+    };
+
+    // initial load
+    fetchGallery();
+  </script>
+</body>
+</html>
