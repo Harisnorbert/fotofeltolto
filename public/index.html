@@ -51,11 +51,18 @@
     });
 
     async function uploadFiles(files) {
-      for (let file of files) {
-        await sb.storage.from(BUCKET)
-          .upload(file.name, file, { cacheControl: '3600', upsert: false });
-      }
+  for (let file of files) {
+    const { data, error } = await sb
+      .storage
+      .from(BUCKET)
+      .upload(file.name, file, { cacheControl: '3600', upsert: false });
+
+    if (error) {
+      console.error('Upload error for', file.name, error);
+      throw error;  // or show a user alert
     }
+  }
+}
 
     async function listFiles() {
       const { data = [] } = await sb.storage.from(BUCKET)
