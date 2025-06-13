@@ -3,22 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" href="favicon.ico" type="image/x-icon">
   <title>Esküvői fotók</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css">
-  <script src="env.js" defer></script>
+
+  <!-- Your build-time generated env.js -->
+  <script src="/env.js" defer></script>
+
+  <!-- Supabase & supporting libs -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" defer></script>
 </head>
 <body>
   <div class="container">
     <h1><span class="icon">📸</span>Esküvői fotók</h1>
 
-    <!-- Preview Selected Images -->
+    <!-- Preview of chosen files -->
     <div id="preview"></div>
 
-    <!-- Upload Controls -->
+    <!-- Controls -->
     <div class="controls">
       <label for="fileInput" class="file-label">Válassz képeket</label>
-      <input type="file" id="fileInput" multiple accept="image/*" />
+      <input type="file" id="fileInput" multiple accept="image/jpeg,image/png" />
       <button class="btn" id="uploadBtn">Feltöltés</button>
       <button class="btn" id="downloadAllBtn">Összes letöltése</button>
     </div>
@@ -27,89 +34,90 @@
     <div id="gallery"></div>
   </div>
 
-  <!-- Dependencies -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" defer></script>
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Read injected env.js
+    const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__;
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  <!-- Main Script -->
-  <script defer>
-    document.addEventListener('DOMContentLoaded', () => {
-      const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__;
-      const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const fileInput   = document.getElementById('fileInput');
+    const preview     = document.getElementById('preview');
+    const gallery     = document.getElementById('gallery');
+    const uploadBtn   = document.getElementById('uploadBtn');
+    const downloadBtn = document.getElementById('downloadAllBtn');
 
-      const fileInput = document.getElementById('fileInput');
-      const preview = document.getElementById('preview');
-      const gallery = document.getElementById('gallery');
-
-      // Preview images
-      fileInput.addEventListener('change', () => {
-        preview.innerHTML = '';
-        Array.from(fileInput.files).forEach(file => {
-          const img = document.createElement('img');
-          img.src = URL.createObjectURL(file);
-          img.alt = file.name;
-          preview.appendChild(img);
-        });
+    // 1) Preview selected files
+    fileInput.addEventListener('change', () => {
+      preview.innerHTML = '';
+      Array.from(fileInput.files).forEach(file => {
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.alt = file.name;
+        preview.appendChild(img);
       });
-
-      // Generate unique filename
-      function makeName(file) {
-        const ts = Date.now();
-        const rnd = Math.random().toString(36).slice(2,8);
-        return `${ts}_${rnd}_${file.name}`;
-      }
-
-      // Upload
-      document.getElementById('uploadBtn').addEventListener('click', async () => {
-        const files = Array.from(fileInput.files);
-        if (!files.length) { alert('Válassz ki képeket!'); return; }
-        for (const file of files) {
-          const name = makeName(file);
-          const { error } = await sb.storage.from(BUCKET)
-            .upload(name, file, { cacheControl: '3600', upsert: false });
-          if (error) console.error('Feltöltési hiba', error.message);
-        }
-        fileInput.value = '';
-        preview.innerHTML = '';
-        showGallery();
-      });
-
-      // Download All
-      document.getElementById('downloadAllBtn').addEventListener('click', async () => {
-        const { data: list } = await sb.storage.from(BUCKET)
-          .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' }});
-        if (!list.length) { alert('Nincsenek fotók.'); return; }
-        const zip = new JSZip();
-        for (const f of list) {
-          if (f.name.startsWith('.')) continue;
-          const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-          const resp = await fetch(publicUrl);
-          zip.file(f.name, await resp.blob());
-        }
-        const blob = await zip.generateAsync({ type: 'blob' });
-        saveAs(blob, 'eskuvoi_fotok.zip');
-      });
-
-      // Gallery
-      async function showGallery() {
-        const { data: list } = await sb.storage.from(BUCKET)
-          .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' }});
-        gallery.innerHTML = '';
-        for (const f of list) {
-          if (f.name.startsWith('.')) continue;
-          const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-          const a = document.createElement('a');
-          a.href = publicUrl; a.target = '_blank';
-          const img = document.createElement('img');
-          img.src = publicUrl; img.alt = f.name;
-          a.appendChild(img);
-          gallery.appendChild(a);
-        }
-      }
-
-      showGallery();
     });
+
+    // 2) Upload (JPEG/PNG only)
+    uploadBtn.addEventListener('click', async () => {
+      const raw = Array.from(fileInput.files);
+      // filter out HEIC
+      const files = raw.filter(f => /\.(jpe?g|png)$/i.test(f.name));
+      if (files.length < raw.length) {
+        alert('HEIC fájlok nem támogatottak – kérlek konvertáld őket JPEG/PNG formátumba.');
+      }
+      if (!files.length) return alert('Kérlek válassz JPEG vagy PNG képeket.');
+
+      for (let file of files) {
+        const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
+        const { error } = await sb.storage
+          .from(BUCKET)
+          .upload(key, file, { cacheControl: '3600', upsert: false });
+        if (error) console.error('Feltöltési hiba:', error.message);
+      }
+
+      fileInput.value = '';
+      preview.innerHTML = '';
+      await refreshGallery();
+    });
+
+    // 3) Download all as ZIP
+    downloadBtn.addEventListener('click', async () => {
+      const { data: files = [] } = await sb.storage
+        .from(BUCKET)
+        .list('', { limit: 100, sortBy: { column:'created_at', order:'desc' }});
+      if (!files.length) return alert('Nincsenek letölthető képek.');
+
+      const zip = new JSZip();
+      await Promise.all(files.map(async f => {
+        const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+        const res = await fetch(publicUrl);
+        zip.file(f.name, await res.blob());
+      }));
+      const blob = await zip.generateAsync({ type:'blob' });
+      saveAs(blob, 'all_photos.zip');
+    });
+
+    // 4) Render gallery
+    async function refreshGallery() {
+      gallery.innerHTML = '';
+      const { data: files = [] } = await sb.storage
+        .from(BUCKET)
+        .list('', { limit: 100, sortBy: { column:'created_at', order:'desc' }});
+      for (let f of files) {
+        if (f.name.startsWith('.')) continue;
+        const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+        const a = document.createElement('a');
+        a.href = publicUrl; a.target = '_blank';
+        const img = document.createElement('img');
+        img.src = publicUrl; img.alt = f.name;
+        a.appendChild(img);
+        gallery.appendChild(a);
+      }
+    }
+
+    // Initial load
+    refreshGallery();
+  });
   </script>
 </body>
 </html>
