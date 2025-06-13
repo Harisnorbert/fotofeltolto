@@ -74,20 +74,23 @@
     }
 
     async function refreshGallery() {
-      const files = await listFiles();
-      gallery.innerHTML = '';
-      for (const f of files) {
-        const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-        const link = document.createElement('a');
-        link.href = publicUrl;
-        link.target = '_blank';
-        const img = document.createElement('img');
-        img.src = publicUrl;
-        img.alt = f.name;
-        link.appendChild(img);
-        gallery.appendChild(link);
-      }
-    }
+  const files = await listFiles();
+  gallery.innerHTML = '';
+
+  // remove any placeholder files
+  const realFiles = files.filter(f => f.name !== '.emptyFolderPlaceholder');
+
+  for (const f of realFiles) {
+    const { data: { publicUrl } } =
+      sb.storage.from(BUCKET).getPublicUrl(f.name);
+    const link = document.createElement('a');
+    link.href = publicUrl; link.target = '_blank';
+    const img = document.createElement('img');
+    img.src = publicUrl; img.alt = f.name;
+    link.appendChild(img);
+    gallery.appendChild(link);
+  }
+}
 
     document.getElementById('uploadBtn').addEventListener('click', async () => {
       const files = Array.from(fileInput.files);
