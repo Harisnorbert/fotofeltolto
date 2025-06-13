@@ -1,0 +1,4 @@
+[build]
+  # if you need to install deps:
+  # command = "npm install"
+  publish = "public"
