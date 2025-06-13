@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QR Photo Drop</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="env.js"></script>
+  <script src="env.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -27,106 +27,88 @@
   </div>
 
   <!-- Dependencies -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" defer></script>
 
   <!-- Main Script -->
-  <script>
-    const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__;
-    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  <script defer>
+    document.addEventListener('DOMContentLoaded', () => {
+      const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__;
+      const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const fileInput = document.getElementById('fileInput');
-    const preview = document.getElementById('preview');
-    const gallery = document.getElementById('gallery');
+      const fileInput = document.getElementById('fileInput');
+      const preview = document.getElementById('preview');
+      const gallery = document.getElementById('gallery');
 
-    // Show image previews
-    fileInput.addEventListener('change', () => {
-      preview.innerHTML = '';
-      Array.from(fileInput.files).forEach(file => {
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
-        img.alt = file.name;
-        preview.appendChild(img);
+      // Preview images
+      fileInput.addEventListener('change', () => {
+        preview.innerHTML = '';
+        Array.from(fileInput.files).forEach(file => {
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(file);
+          img.alt = file.name;
+          preview.appendChild(img);
+        });
       });
+
+      // Generate unique filename
+      function makeName(file) {
+        const ts = Date.now();
+        const rnd = Math.random().toString(36).slice(2,8);
+        return `${ts}_${rnd}_${file.name}`;
+      }
+
+      // Upload
+      document.getElementById('uploadBtn').addEventListener('click', async () => {
+        const files = Array.from(fileInput.files);
+        if (!files.length) { alert('Select photos.'); return; }
+        for (const file of files) {
+          const name = makeName(file);
+          const { error } = await sb.storage.from(BUCKET)
+            .upload(name, file, { cacheControl: '3600', upsert: false });
+          if (error) console.error('Upload error', error.message);
+        }
+        fileInput.value = '';
+        preview.innerHTML = '';
+        showGallery();
+      });
+
+      // Download All
+      document.getElementById('downloadAllBtn').addEventListener('click', async () => {
+        const { data: list } = await sb.storage.from(BUCKET)
+          .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' }});
+        if (!list.length) { alert('No photos.'); return; }
+        const zip = new JSZip();
+        for (const f of list) {
+          if (f.name.startsWith('.')) continue;
+          const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+          const resp = await fetch(publicUrl);
+          zip.file(f.name, await resp.blob());
+        }
+        const blob = await zip.generateAsync({ type: 'blob' });
+        saveAs(blob, 'all_photos.zip');
+      });
+
+      // Gallery
+      async function showGallery() {
+        const { data: list } = await sb.storage.from(BUCKET)
+          .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' }});
+        gallery.innerHTML = '';
+        for (const f of list) {
+          if (f.name.startsWith('.')) continue;
+          const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+          const a = document.createElement('a');
+          a.href = publicUrl; a.target = '_blank';
+          const img = document.createElement('img');
+          img.src = publicUrl; img.alt = f.name;
+          a.appendChild(img);
+          gallery.appendChild(a);
+        }
+      }
+
+      showGallery();
     });
-
-    // Upload files with unique names
-    function generateFilename(file) {
-      const ts = Date.now();
-      const rnd = Math.random().toString(36).slice(2, 8);
-      return `${ts}_${rnd}_${file.name}`;
-    }
-
-    async function uploadFiles(files) {
-      for (const file of files) {
-        const uniqueName = generateFilename(file);
-        const { error } = await sb.storage.from(BUCKET)
-          .upload(uniqueName, file, { cacheControl: '3600', upsert: false });
-        if (error) console.error('Upload failed:', error.message);
-      }
-    }
-
-    async function listFiles() {
-      const { data = [] } = await sb.storage.from(BUCKET)
-        .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' }});
-      return data;
-    }
-
-    async function refreshGallery() {
-      let files = await listFiles();
-      // Filter out internal/placeholder files
-      files = files.filter(f => !f.name.startsWith('.'));
-      gallery.innerHTML = '';
-      for (const f of files) {
-        const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-        const link = document.createElement('a');
-        link.href = publicUrl;
-        link.target = '_blank';
-        const img = document.createElement('img');
-        img.src = publicUrl;
-        img.alt = f.name;
-        link.appendChild(img);
-        gallery.appendChild(link);
-      }
-    }
-} = sb.storage.from(BUCKET).getPublicUrl(f.name);
-        const link = document.createElement('a');
-        link.href = publicUrl;
-        link.target = '_blank';
-        const img = document.createElement('img');
-        img.src = publicUrl;
-        img.alt = f.name;
-        link.appendChild(img);
-        gallery.appendChild(link);
-      }
-    }
-
-    document.getElementById('uploadBtn').addEventListener('click', async () => {
-      const files = Array.from(fileInput.files);
-      if (!files.length) return alert('Select photos before uploading.');
-      await uploadFiles(files);
-      fileInput.value = '';
-      preview.innerHTML = '';
-      await refreshGallery();
-    });
-
-    document.getElementById('downloadAllBtn').addEventListener('click', async () => {
-      const files = await listFiles();
-      if (!files.length) return alert('No photos to download.');
-      const zip = new JSZip();
-      for (const f of files) {
-        const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-        const res = await fetch(publicUrl);
-        const blob = await res.blob();
-        zip.file(f.name, blob);
-      }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      saveAs(blob, 'all_photos.zip');
-    });
-
-    // Initialize gallery
-    refreshGallery();
   </script>
 </body>
 </html>
