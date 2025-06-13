@@ -3,23 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QR Photo Drop</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <title>Esküvői fotók</title>
   <link rel="stylesheet" href="styles.css">
   <script src="env.js" defer></script>
 </head>
 <body>
   <div class="container">
-    <h1><span class="icon">📸</span>QR Photo Drop</h1>
+    <h1><span class="icon">📸</span>Esküvői fotók</h1>
 
     <!-- Preview Selected Images -->
     <div id="preview"></div>
 
     <!-- Upload Controls -->
     <div class="controls">
-      <label for="fileInput" class="file-label">Choose Photos</label>
+      <label for="fileInput" class="file-label">Válassz képeket</label>
       <input type="file" id="fileInput" multiple accept="image/*" />
-      <button class="btn" id="uploadBtn">Upload</button>
-      <button class="btn" id="downloadAllBtn">Download All</button>
+      <button class="btn" id="uploadBtn">Feltöltés</button>
+      <button class="btn" id="downloadAllBtn">Összes letöltése</button>
     </div>
 
     <!-- Gallery -->
@@ -62,12 +63,12 @@
       // Upload
       document.getElementById('uploadBtn').addEventListener('click', async () => {
         const files = Array.from(fileInput.files);
-        if (!files.length) { alert('Select photos.'); return; }
+        if (!files.length) { alert('Válassz ki képeket!'); return; }
         for (const file of files) {
           const name = makeName(file);
           const { error } = await sb.storage.from(BUCKET)
             .upload(name, file, { cacheControl: '3600', upsert: false });
-          if (error) console.error('Upload error', error.message);
+          if (error) console.error('Feltöltési hiba', error.message);
         }
         fileInput.value = '';
         preview.innerHTML = '';
@@ -78,7 +79,7 @@
       document.getElementById('downloadAllBtn').addEventListener('click', async () => {
         const { data: list } = await sb.storage.from(BUCKET)
           .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' }});
-        if (!list.length) { alert('No photos.'); return; }
+        if (!list.length) { alert('Nincsenek fotók.'); return; }
         const zip = new JSZip();
         for (const f of list) {
           if (f.name.startsWith('.')) continue;
@@ -87,7 +88,7 @@
           zip.file(f.name, await resp.blob());
         }
         const blob = await zip.generateAsync({ type: 'blob' });
-        saveAs(blob, 'all_photos.zip');
+        saveAs(blob, 'eskuvoi_fotok.zip');
       });
 
       // Gallery
