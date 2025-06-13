@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QR Photo Drop</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="env.js"></script>
 </head>
 <body>
   <div class="container">
@@ -28,7 +29,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-  <script src="env.js"></script> 
   <script>
     const SUPABASE_URL = window.__ENV__.SUPABASE_URL;
     const SUPABASE_ANON_KEY = window.__ENV__.SUPABASE_ANON_KEY;
@@ -50,19 +50,21 @@
       });
     });
 
-    async function uploadFiles(files) {
-  for (let file of files) {
-    const { data, error } = await sb
-      .storage
-      .from(BUCKET)
-      .upload(file.name, file, { cacheControl: '3600', upsert: false });
-
-    if (error) {
-      console.error('Upload error for', file.name, error);
-      throw error;  // or show a user alert
+    // Generate a unique filename to avoid collisions
+    function generateFilename(file) {
+      const random = Math.random().toString(36).substring(2,8);
+      const timestamp = Date.now();
+      return `${timestamp}_${random}_${file.name}`;
     }
-  }
-}
+
+    async function uploadFiles(files) {
+      for (let file of files) {
+        const uniqueName = generateFilename(file);
+        const { error } = await sb.storage.from(BUCKET)
+          .upload(uniqueName, file, { cacheControl: '3600', upsert: false });
+        if (error) console.error('Upload error for', file.name, error);
+      }
+    }
 
     async function listFiles() {
       const { data = [] } = await sb.storage.from(BUCKET)
