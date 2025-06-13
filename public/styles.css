@@ -100,9 +100,11 @@ h1 .icon { margin-right: 0.5rem; }
   display: block;
 }
 
+
 /* Responsive tweaks */
 @media (max-width: 600px) {
   .controls { flex-direction: column; }
   .btn, .file-label { width: 100%; justify-content: center; }
-  #preview img, #gallery img { height: 60px; }
+  #preview img { height: 60px; }
+  #gallery img { height: 80px; }
 }

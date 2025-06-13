@@ -14,6 +14,7 @@
     <!-- Preview Selected Images -->
     <div id="preview"></div>
 
+    <!-- Upload Controls -->
     <div class="controls">
       <label for="fileInput" class="file-label">Choose Photos</label>
       <input type="file" id="fileInput" multiple accept="image/*" />
@@ -21,25 +22,25 @@
       <button class="btn" id="downloadAllBtn">Download All</button>
     </div>
 
-    <!-- Empty placeholder shown when no gallery items -->
-    <div id="empty-placeholder">No photos uploaded yet.</div>
+    <!-- Gallery -->
     <div id="gallery"></div>
   </div>
 
+  <!-- Dependencies -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <!-- Main Script -->
   <script>
-    const SUPABASE_URL = window.__ENV__.SUPABASE_URL;
-    const SUPABASE_ANON_KEY = window.__ENV__.SUPABASE_ANON_KEY;
-    const BUCKET = window.__ENV__.BUCKET;
+    const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__;
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('preview');
     const gallery = document.getElementById('gallery');
-    const emptyPlaceholder = document.getElementById('empty-placeholder');
 
+    // Show image previews
     fileInput.addEventListener('change', () => {
       preview.innerHTML = '';
       Array.from(fileInput.files).forEach(file => {
@@ -50,19 +51,19 @@
       });
     });
 
-    // Generate a unique filename to avoid collisions
+    // Upload files with unique names
     function generateFilename(file) {
-      const random = Math.random().toString(36).substring(2,8);
-      const timestamp = Date.now();
-      return `${timestamp}_${random}_${file.name}`;
+      const ts = Date.now();
+      const rnd = Math.random().toString(36).slice(2, 8);
+      return `${ts}_${rnd}_${file.name}`;
     }
 
     async function uploadFiles(files) {
-      for (let file of files) {
+      for (const file of files) {
         const uniqueName = generateFilename(file);
         const { error } = await sb.storage.from(BUCKET)
           .upload(uniqueName, file, { cacheControl: '3600', upsert: false });
-        if (error) console.error('Upload error for', file.name, error);
+        if (error) console.error('Upload failed:', error.message);
       }
     }
 
@@ -75,27 +76,22 @@
     async function refreshGallery() {
       const files = await listFiles();
       gallery.innerHTML = '';
-      if (files.length === 0) {
-        emptyPlaceholder.style.display = 'block';
-      } else {
-        emptyPlaceholder.style.display = 'none';
-        for (let f of files) {
-          const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-          const link = document.createElement('a');
-          link.href = publicUrl;
-          link.target = '_blank';
-          const img = document.createElement('img');
-          img.src = publicUrl;
-          img.alt = f.name;
-          link.appendChild(img);
-          gallery.appendChild(link);
-        }
+      for (const f of files) {
+        const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+        const link = document.createElement('a');
+        link.href = publicUrl;
+        link.target = '_blank';
+        const img = document.createElement('img');
+        img.src = publicUrl;
+        img.alt = f.name;
+        link.appendChild(img);
+        gallery.appendChild(link);
       }
     }
 
     document.getElementById('uploadBtn').addEventListener('click', async () => {
       const files = Array.from(fileInput.files);
-      if (!files.length) return alert('Please select photos first.');
+      if (!files.length) return alert('Select photos before uploading.');
       await uploadFiles(files);
       fileInput.value = '';
       preview.innerHTML = '';
@@ -104,18 +100,19 @@
 
     document.getElementById('downloadAllBtn').addEventListener('click', async () => {
       const files = await listFiles();
-      if (files.length === 0) return alert('No photos to download.');
+      if (!files.length) return alert('No photos to download.');
       const zip = new JSZip();
-      for (let f of files) {
+      for (const f of files) {
         const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
         const res = await fetch(publicUrl);
         const blob = await res.blob();
         zip.file(f.name, blob);
       }
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, 'all_photos.zip');
+      const blob = await zip.generateAsync({ type: 'blob' });
+      saveAs(blob, 'all_photos.zip');
     });
 
+    // Initialize gallery
     refreshGallery();
   </script>
 </body>
