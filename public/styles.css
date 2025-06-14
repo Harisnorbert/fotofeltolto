@@ -82,6 +82,7 @@ img {
   font-size: 1rem;
   text-decoration: none;
   transition: background 0.2s;
+  font-family: 'Great Vibes', cursive;
 }
 .btn:hover { background: lightgreen; }
 
