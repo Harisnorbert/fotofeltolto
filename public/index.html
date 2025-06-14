@@ -11,11 +11,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
 
   <!-- PhotoSwipe CSS & expose module -->
-  <link rel="stylesheet" href="https://unpkg.com/photoswipe@5/dist/photoswipe.css"/>
-  <script type="module">
-    import PhotoSwipeLightbox from 'https://unpkg.com/photoswipe@5/dist/photoswipe-lightbox.esm.js';
-    window.PhotoSwipeLightbox = PhotoSwipeLightbox;
-  </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js" defer></script>
 
   <!-- Injected env (SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET) -->
   <script src="/env.js" defer></script>
@@ -48,10 +45,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   // 1) Supabase client
   const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__ || {};
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error('Missing Supabase config in env.js');
-    return;
-  }
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return console.error('Missing Supabase env variables');
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // 2) DOM refs
@@ -64,144 +58,90 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3) Track selected files
   let selectedFiles = [];
 
-  // 4) Render preview thumbnails with remove buttons
   function renderPreview() {
     preview.innerHTML = '';
-    selectedFiles.forEach((file, i) => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'preview-item';
-
+    selectedFiles.forEach((file,i) => {
+      const w = document.createElement('div'); w.className='preview-item';
       const img = document.createElement('img');
-      img.src = URL.createObjectURL(file);
-      img.alt = file.name;
-
-      const del = document.createElement('button');
-      del.className = 'preview-delete';
-      del.textContent = '×';
-      del.title = 'Eltávolítás';
-      del.onclick = () => {
-        selectedFiles.splice(i, 1);
-        renderPreview();
-      };
-
-      wrapper.appendChild(img);
-      wrapper.appendChild(del);
-      preview.appendChild(wrapper);
+      img.src=URL.createObjectURL(file); img.alt=file.name;
+      const d = document.createElement('button');
+      d.className='preview-delete'; d.textContent='×'; d.title='Eltávolítás';
+      d.onclick = ()=>{ selectedFiles.splice(i,1); renderPreview(); };
+      w.append(img,d); preview.appendChild(w);
     });
   }
 
-  // 5) When user picks files, merge into selectedFiles, avoid duplicates
-  fileInput.addEventListener('change', () => {
-    Array.from(fileInput.files).forEach(f => {
-      if (!selectedFiles.some(x => x.name === f.name && x.size === f.size)) {
-        selectedFiles.push(f);
-      }
+  fileInput.addEventListener('change', ()=>{
+    Array.from(fileInput.files).forEach(f=>{
+      if(!selectedFiles.some(x=>x.name===f.name&&x.size===f.size)) selectedFiles.push(f);
     });
     renderPreview();
   });
 
-  // 6) Upload handler (JPEG/PNG only)
-  uploadBtn.addEventListener('click', async () => {
-    if (!selectedFiles.length) return alert('Kérlek válassz képeket feltöltéshez.');
-
-    const files = selectedFiles.filter(f => /\.(jpe?g|png)$/i.test(f.name));
-    if (files.length < selectedFiles.length) {
-      alert('HEIC fájlok nem támogatottak – kérlek konvertáld őket JPEG/PNG formátumba.');
+  uploadBtn.addEventListener('click', async ()=>{
+    if(!selectedFiles.length) return alert('Kérlek válassz képeket.');
+    const files = selectedFiles.filter(f=>/\.(jpe?g|png)$/i.test(f.name));
+    if(files.length<selectedFiles.length) alert('HEIC nem támogatott – konvertáld JPEG/PNG formátumra.');
+    if(!files.length) return;
+    for(const file of files){
+      const key=`${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
+      const {error}=await sb.storage.from(BUCKET).upload(key,file,{cacheControl:'3600',upsert:false});
+      if(error) console.error('Upload error:',error.message);
     }
-    if (!files.length) return;
-
-    for (const file of files) {
-      const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
-      const { error } = await sb.storage.from(BUCKET)
-        .upload(key, file, { cacheControl: '3600', upsert: false });
-      if (error) console.error('Feltöltési hiba:', error.message);
-    }
-
-    // Reset selection & UI, refresh gallery
-    selectedFiles = [];
-    fileInput.value = '';
-    renderPreview();
+    selectedFiles=[]; fileInput.value=''; renderPreview();
     await refreshGallery();
   });
 
-  // 7) Download-all ZIP
-  downloadBtn.addEventListener('click', async () => {
-    const { data: files = [] } = await sb.storage.from(BUCKET)
-      .list('', { limit: 100, sortBy: { column:'created_at', order:'desc' }});
-    if (!files.length) return alert('Nincsenek letölthető képek.');
-
-    const zip = new JSZip();
-    await Promise.all(files
-      .filter(f => !f.name.startsWith('.'))
-      .map(async f => {
-        const { data } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-        const res = await fetch(data.publicUrl);
-        zip.file(f.name, await res.blob());
-      })
-    );
-    const blob = await zip.generateAsync({ type:'blob' });
-    saveAs(blob, 'all_photos.zip');
+  downloadBtn.addEventListener('click', async ()=>{
+    const {data:files=[]}=await sb.storage.from(BUCKET)
+      .list('',{limit:100,sortBy:{column:'created_at',order:'desc'}});
+    if(!files.length) return alert('Nincs kép.');
+    const zip=new JSZip();
+    for(const f of files.filter(f=>!f.name.startsWith('.'))){
+      const {data}=sb.storage.from(BUCKET).getPublicUrl(f.name);
+      const res=await fetch(data.publicUrl);
+      zip.file(f.name,await res.blob());
+    }
+    const blob=await zip.generateAsync({type:'blob'});
+    saveAs(blob,'all_photos.zip');
   });
 
-  // 8) PhotoSwipe lightbox instance (declared here so we can refresh it)
+  // 4) Set up GLightbox instance
   let lightbox;
 
-  // 9) Refresh gallery and set up PhotoSwipe attributes
-  async function refreshGallery() {
-    gallery.innerHTML = '';
-    const { data: files = [] } = await sb.storage.from(BUCKET)
-      .list('', { limit: 100, sortBy: { column:'created_at', order:'desc' }});
-
-    // Build thumbnails
-    files.filter(f => !f.name.startsWith('.')).forEach(f => {
-      const { data } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-      const publicUrl = data.publicUrl;
-
-      const a = document.createElement('a');
-      a.setAttribute('data-pswp-src', publicUrl);
-      // fallback link
-      a.href = publicUrl;
-      a.target = '_blank';
-
-      const img = document.createElement('img');
-      img.src = publicUrl;
-      img.alt = f.name;
-
-      // Once loaded, tell PSWP the natural size
-      img.onload = () => {
-        a.setAttribute('data-pswp-width', img.naturalWidth);
-        a.setAttribute('data-pswp-height', img.naturalHeight);
-      };
-
-      a.appendChild(img);
-      gallery.appendChild(a);
-    });
-
-    // Initialize or refresh the lightbox
-    if (!lightbox) {
-      lightbox = new window.PhotoSwipeLightbox({
-        gallery: '#gallery',
-        children: 'a',
-        pswpModule: () => import('https://unpkg.com/photoswipe@5/dist/photoswipe.esm.js'),
-        showHideAnimationType: 'fade',
-        toolbar: {
-          display: {
-            left: ['prev','counter'],
-            center: [],
-            right: ['next','download','close']
-          }
-        }
+  // 5) Refresh gallery
+  async function refreshGallery(){
+    gallery.innerHTML='';
+    const {data:files=[]}=await sb.storage.from(BUCKET)
+      .list('',{limit:100,sortBy:{column:'created_at',order:'desc'}});
+    for(const f of files.filter(f=>!f.name.startsWith('.'))){
+      const {data}=sb.storage.from(BUCKET).getPublicUrl(f.name);
+      const a=document.createElement('a');
+      a.href=data.publicUrl;
+      a.className='glightbox';
+      a.dataset.gallery='gallery';
+      const img=document.createElement('img');
+      img.src=data.publicUrl; img.alt=f.name;
+      a.appendChild(img); gallery.appendChild(a);
+    }
+    // init or reload GLightbox
+    if(!lightbox){
+      lightbox = GLightbox({
+        selector: '#gallery a.glightbox',
+        openEffect: 'fade',
+        slideEffect: 'slide',
+        touchNavigation: true,
+        loop: false,
+        zoomable: true
       });
-      lightbox.init();
     } else {
-      lightbox.refresh();
+      lightbox.reload();
     }
   }
 
-  // 10) Initial load
+  // 6) Initial load
   refreshGallery();
 });
 </script>
-
 </body>
 </html>
