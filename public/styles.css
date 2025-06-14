@@ -8,7 +8,7 @@ body { background: #f4f6f8; color: #333; }
   max-width: 900px;
   margin: 2rem auto;
   padding: 1rem;
-  background: #fff;
+  background: url("hatter.jpg");
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.06);
 }
@@ -45,7 +45,6 @@ h1 .icon { margin-right: 0.5rem; }
   gap: 0.5rem;
   justify-content: center;
   margin-bottom: 1.5rem;
-  background-image: url("hatter.jpg");
 }
 .controls input[type=file] { display: none; }
 .file-label {
