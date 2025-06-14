@@ -4,24 +4,33 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Esküvői fotók</title>
-  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+
+  <!-- Base styles -->
   <link rel="stylesheet" href="styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
 
-  <!-- Your build-time generated env.js -->
-  <script src="/env.js" defer></script>
+  <!-- PhotoSwipe CSS + expose module -->
+  <link rel="stylesheet" href="https://unpkg.com/photoswipe@5/dist/photoswipe.css"/>
+  <script type="module">
+    import PhotoSwipeLightbox from 'https://unpkg.com/photoswipe@5/dist/photoswipe-lightbox.esm.js';
+    window.PhotoSwipeLightbox = PhotoSwipeLightbox;
+  </script>
 
-  <!-- Supabase & supporting libs -->
+  <!-- Injected environment (SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET) -->
+  <script src="/env.js" defer></script>
+  <!-- Supabase & utilities -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" defer></script>
 </head>
+
 <body>
   <div class="container">
-    <img src="hatter.jpg" alt="Móni és Tomi" width="600" height="500">
+    <img src="hatter.jpg" alt="Móni és Tomi" class="hero-image">
     <h1>Móni és Tomi esküvői fotói</h1>
 
-    <!-- Preview of chosen files -->
+    <!-- Preview of selected files -->
     <div id="preview"></div>
 
     <!-- Controls -->
@@ -38,17 +47,18 @@
 
   <script>
   document.addEventListener('DOMContentLoaded', () => {
-    // Read injected env.js
+    // Initialize Supabase
     const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__;
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // DOM refs
     const fileInput   = document.getElementById('fileInput');
     const preview     = document.getElementById('preview');
     const gallery     = document.getElementById('gallery');
     const uploadBtn   = document.getElementById('uploadBtn');
     const downloadBtn = document.getElementById('downloadAllBtn');
 
-    // 1) Preview selected files
+    // Preview selected images
     fileInput.addEventListener('change', () => {
       preview.innerHTML = '';
       Array.from(fileInput.files).forEach(file => {
@@ -59,7 +69,7 @@
       });
     });
 
-    // 2) Upload (JPEG/PNG only)
+    // Upload handler (JPEG/PNG only)
     uploadBtn.addEventListener('click', async () => {
       const raw = Array.from(fileInput.files);
       // filter out HEIC
@@ -82,7 +92,7 @@
       await refreshGallery();
     });
 
-    // 3) Download all as ZIP
+    // Download all as ZIP
     downloadBtn.addEventListener('click', async () => {
       const { data: files = [] } = await sb.storage
         .from(BUCKET)
@@ -99,26 +109,45 @@
       saveAs(blob, 'all_photos.zip');
     });
 
-    // 4) Render gallery
+    // Refresh and render the gallery
     async function refreshGallery() {
       gallery.innerHTML = '';
       const { data: files = [] } = await sb.storage
         .from(BUCKET)
         .list('', { limit: 100, sortBy: { column:'created_at', order:'desc' }});
-      for (let f of files) {
-        if (f.name.startsWith('.')) continue;
-        const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-        const a = document.createElement('a');
-        a.href = publicUrl; a.target = '_blank';
-        const img = document.createElement('img');
-        img.src = publicUrl; img.alt = f.name;
-        a.appendChild(img);
-        gallery.appendChild(a);
-      }
+      files
+        .filter(f => !f.name.startsWith('.'))
+        .forEach(f => {
+          const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+          const a = document.createElement('a');
+          a.href = publicUrl;
+          a.target = '_blank';
+          const img = document.createElement('img');
+          img.src = publicUrl;
+          img.alt = f.name;
+          a.appendChild(img);
+          gallery.appendChild(a);
+        });
     }
 
-    // Initial load
+    // Initial gallery load
     refreshGallery();
+
+    // Initialize PhotoSwipe lightbox after gallery items exist
+    const lightbox = new window.PhotoSwipeLightbox({
+      gallery: '#gallery',
+      children: 'a',
+      pswpModule: () => import('https://unpkg.com/photoswipe@5/dist/photoswipe.esm.js'),
+      showHideAnimationType: 'fade',
+      toolbar: {
+        display: {
+          left: ['prev','counter'],
+          center: [],
+          right: ['next','download','close']
+        }
+      }
+    });
+    lightbox.init();
   });
   </script>
 </body>
