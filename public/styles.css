@@ -79,7 +79,8 @@ img {
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.5rem;      /* larger script size */
+  line-height: 1.2;       /* tighten up vertical rhythm */
   text-decoration: none;
   transition: background 0.2s;
   font-family: 'Great Vibes', cursive;
