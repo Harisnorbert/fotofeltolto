@@ -45,7 +45,7 @@ h1 .icon { margin-right: 0.5rem; }
   gap: 0.5rem;
   justify-content: center;
   margin-bottom: 1.5rem;
-  background-image: 'hatter.jpg';
+  background-image: url("hatter.jpg");
 }
 .controls input[type=file] { display: none; }
 .file-label {
