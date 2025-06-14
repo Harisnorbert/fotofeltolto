@@ -47,7 +47,11 @@
   <script>
 document.addEventListener('DOMContentLoaded', () => {
   // 1) Supabase client
-  const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__;
+  const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__ || {};
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('Missing Supabase config in env.js');
+    return;
+  }
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // 2) DOM refs
@@ -96,11 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPreview();
   });
 
-  // 6) Upload handler (filter HEIC, then upload JPEG/PNG)
+  // 6) Upload handler (JPEG/PNG only)
   uploadBtn.addEventListener('click', async () => {
-    if (!selectedFiles.length) {
-      return alert('Kérlek válassz képeket feltöltéshez.');
-    }
+    if (!selectedFiles.length) return alert('Kérlek válassz képeket feltöltéshez.');
+
     const files = selectedFiles.filter(f => /\.(jpe?g|png)$/i.test(f.name));
     if (files.length < selectedFiles.length) {
       alert('HEIC fájlok nem támogatottak – kérlek konvertáld őket JPEG/PNG formátumba.');
@@ -109,13 +112,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     for (const file of files) {
       const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
-      const { error } = await sb.storage
-        .from(BUCKET)
+      const { error } = await sb.storage.from(BUCKET)
         .upload(key, file, { cacheControl: '3600', upsert: false });
       if (error) console.error('Feltöltési hiba:', error.message);
     }
 
-    // reset selection + UI + gallery
+    // Reset selection & UI, refresh gallery
     selectedFiles = [];
     fileInput.value = '';
     renderPreview();
@@ -124,17 +126,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 7) Download-all ZIP
   downloadBtn.addEventListener('click', async () => {
-    const { data: files = [] } = await sb.storage
-      .from(BUCKET)
-      .list('', { limit:100, sortBy:{ column:'created_at', order:'desc' }});
+    const { data: files = [] } = await sb.storage.from(BUCKET)
+      .list('', { limit: 100, sortBy: { column:'created_at', order:'desc' }});
     if (!files.length) return alert('Nincsenek letölthető képek.');
 
     const zip = new JSZip();
     await Promise.all(files
       .filter(f => !f.name.startsWith('.'))
       .map(async f => {
-        const { data:{ publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-        const res = await fetch(publicUrl);
+        const { data } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+        const res = await fetch(data.publicUrl);
         zip.file(f.name, await res.blob());
       })
     );
@@ -142,33 +143,41 @@ document.addEventListener('DOMContentLoaded', () => {
     saveAs(blob, 'all_photos.zip');
   });
 
-  // 8) Refresh gallery and setup PhotoSwipe data attributes
-  let lightbox;  // will hold PhotoSwipe instance
+  // 8) PhotoSwipe lightbox instance (declared here so we can refresh it)
+  let lightbox;
+
+  // 9) Refresh gallery and set up PhotoSwipe attributes
   async function refreshGallery() {
     gallery.innerHTML = '';
-    const { data: files = [] } = await sb.storage
-      .from(BUCKET)
-      .list('', { limit:100, sortBy:{ column:'created_at', order:'desc' }});
+    const { data: files = [] } = await sb.storage.from(BUCKET)
+      .list('', { limit: 100, sortBy: { column:'created_at', order:'desc' }});
 
+    // Build thumbnails
     files.filter(f => !f.name.startsWith('.')).forEach(f => {
-      const publicUrl = sb.storage.from(BUCKET).getPublicUrl(f.name).data.publicUrl;
+      const { data } = sb.storage.from(BUCKET).getPublicUrl(f.name);
+      const publicUrl = data.publicUrl;
+
       const a = document.createElement('a');
       a.setAttribute('data-pswp-src', publicUrl);
+      // fallback link
+      a.href = publicUrl;
+      a.target = '_blank';
 
       const img = document.createElement('img');
       img.src = publicUrl;
       img.alt = f.name;
 
-      img.addEventListener('load', () => {
+      // Once loaded, tell PSWP the natural size
+      img.onload = () => {
         a.setAttribute('data-pswp-width', img.naturalWidth);
         a.setAttribute('data-pswp-height', img.naturalHeight);
-      });
+      };
 
       a.appendChild(img);
       gallery.appendChild(a);
     });
 
-    // initialize or refresh PhotoSwipe
+    // Initialize or refresh the lightbox
     if (!lightbox) {
       lightbox = new window.PhotoSwipeLightbox({
         gallery: '#gallery',
@@ -176,7 +185,11 @@ document.addEventListener('DOMContentLoaded', () => {
         pswpModule: () => import('https://unpkg.com/photoswipe@5/dist/photoswipe.esm.js'),
         showHideAnimationType: 'fade',
         toolbar: {
-          display: { left:['prev','counter'], center:[], right:['next','download','close'] }
+          display: {
+            left: ['prev','counter'],
+            center: [],
+            right: ['next','download','close']
+          }
         }
       });
       lightbox.init();
@@ -185,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 9) Initial gallery load
+  // 10) Initial load
   refreshGallery();
 });
 </script>
