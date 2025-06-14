@@ -22,8 +22,9 @@ h1 {
   justify-content: center;
 }
 h1 .icon { margin-right: 0.5rem; }
-img{
-  align-self: center;
+img {
+  display: block;
+  margin: auto;
 }
 
 /* Preview grid */
