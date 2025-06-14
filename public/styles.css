@@ -23,8 +23,11 @@ h1 {
 }
 h1 .icon { margin-right: 0.5rem; }
 img {
-  display: block;
-  margin: auto;
+  display: block;     /* removes default inline spacing */
+  margin: 0 auto;     /* centers the block horizontally */
+  width: 70%;        /* scale to fill its container */
+  max-width: 600px;   /* never grow wider than its natural/container max */
+  height: auto;       /* maintain aspect ratio */
 }
 
 /* Preview grid */
