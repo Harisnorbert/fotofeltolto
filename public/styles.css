@@ -67,6 +67,10 @@ h1 {
   font-size: 1.5rem; font-family: 'Great Vibes', cursive; transition: background 0.2s;
 }
 .btn:hover { background: lightgreen; }
+#uploadBtn {
+  display: none;
+}
+
 
 /* Gallery grid */
 #gallery {

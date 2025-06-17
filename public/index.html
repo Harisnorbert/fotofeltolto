@@ -54,6 +54,7 @@
     let selectedFiles = [];
 
     function renderPreview() {
+      uploadBtn.style.display = selectedFiles.length > 0 ? 'inline-flex' : 'none';
       preview.innerHTML = '';
       selectedFiles.forEach((file, i) => {
         const w = document.createElement('div'); w.className='preview-item';
@@ -85,8 +86,9 @@
         const { error } = await sb.storage.from(BUCKET).upload(key, file, { cacheControl:'3600', upsert:false });
         if (error) console.error('Upload error:', error.message);
       }
-      selectedFiles = []; fileInput.value=''; renderPreview();
+      selectedFiles = []; fileInput.value=''; 
       await refreshGallery();
+      renderPreview();
     });
 
     downloadBtn.addEventListener('click', async () => {
