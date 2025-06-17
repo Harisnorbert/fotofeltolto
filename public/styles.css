@@ -87,23 +87,33 @@ h1 {
 
 /* Lightbox letöltés gomb */
 .glightbox-download-btn {
-  position: left;
-  top: 12px;
-  right: 60px;               /* eltolva a Close gombtól */
+  position: absolute;
+  bottom: 12px;             /* 12px-re az aljától */
+  left: 50%;                /* vízszintesen középre */
+  transform: translateX(-50%);
   background: rgba(0,0,0,0.6);
   color: #fff;
   border: none;
   border-radius: 4px;
-  padding: 8px 12px;         /* kicsit nagyobb tap‐céltávolság */
+  padding: 8px 12px;
   font-size: 1rem;
   cursor: pointer;
-  z-index: 9999;             /* biztosan felül legyen */
+  z-index: 9999;
   transition: background 0.2s;
 }
 
 /* Hover effekt */
 .glightbox-download-btn:hover {
   background: rgba(0,0,0,0.8);
+}
+
+/* Mobilra kicsit beljebb, kisebb méret */
+@media (max-width: 600px) {
+  .glightbox-download-btn {
+    bottom: 8px;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+  }
 }
 
 /* Responsive tweaks */
