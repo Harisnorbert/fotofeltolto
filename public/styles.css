@@ -87,7 +87,7 @@ h1 {
 
 /* Lightbox letöltés gomb */
 .glightbox-download-btn {
-  position: absolute;
+  position: left;
   top: 12px;
   right: 60px;               /* eltolva a Close gombtól */
   background: rgba(0,0,0,0.6);
