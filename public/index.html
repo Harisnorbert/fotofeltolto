@@ -81,27 +81,36 @@
     });
 
     uploadBtn.addEventListener('click', async () => {
-      if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
+  if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
 
-      // MIME-típus alapján szűrünk – image/png, image/jpeg, stb.
-      const files = selectedFiles.filter(f => f.type.startsWith('image/'));
-      if (files.length < selectedFiles.length) {
-        alert('Csak képfájlokat tölthetsz fel.');
-      }
-      if (!files.length) return;
+  const files = selectedFiles.filter(f => f.type.startsWith('image/'));
+  if (!files.length) return alert('Csak képfájlokat tölthetsz fel.');
 
-      for (const file of files) {
-        const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
-        const { error } = await sb.storage.from(BUCKET)
-          .upload(key, file, { cacheControl:'3600', upsert:false });
-        if (error) console.error('Upload error:', error.message);
-      }
+  for (const file of files) {
+    const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
+    console.log('Feltöltés:', file.name, file.type);
 
-      selectedFiles = [];
-      fileInput.value = '';
-      await refreshGallery();
-      renderPreview();
-    });
+    const { data, error } = await sb.storage
+      .from(BUCKET)
+      .upload(key, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type,
+        resumable: false
+      });
+
+    console.log('→ data:', data, '→ error:', error);
+    if (error) {
+      alert(`Upload hiba: ${error.message}`);
+      console.error(error);
+    }
+  }
+
+  selectedFiles = [];
+  fileInput.value = '';
+  await refreshGallery();
+  renderPreview();
+});
 
     downloadBtn.addEventListener('click', async () => {
       const { data: files = [] } = await sb.storage.from(BUCKET)
