@@ -6,139 +6,142 @@
   <title>Esküvői fotók</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
 
-  <!-- GLightbox CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  <!-- Base styles & Google Font -->
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
 
-  <!-- Saját stílusok -->
-  <link rel="stylesheet" href="styles.css" />
+  <!-- PhotoSwipe CSS & expose module -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js" defer></script>
+
+  <!-- Injected env (SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET) -->
+  <script src="/env.js" defer></script>
+  <!-- Supabase & utilities -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" defer></script>
 </head>
 <body>
   <div class="container">
     <img src="hatter.jpg" alt="Móni és Tomi" class="hero-image">
     <h1>Móni és Tomi esküvői fotói</h1>
 
+    <!-- Preview of selected files -->
     <div id="preview"></div>
 
+    <!-- Controls -->
     <div class="controls">
-      <label for="fileInput" class="file-label">📁 Válassz képeket</label>
+      <label for="fileInput" class="file-label">Válassz képeket</label>
       <input type="file" id="fileInput" multiple accept="image/jpeg,image/png" />
-      <button class="btn" id="uploadBtn">⤴ Feltöltés</button>
-      <button class="btn" id="downloadAllBtn">⬇ Összes letöltése</button>
+      <button class="btn" id="uploadBtn">Feltöltés</button>
+      <button class="btn" id="downloadAllBtn">Összes letöltése</button>
     </div>
 
+    <!-- Gallery -->
     <div id="gallery"></div>
   </div>
 
-  <!-- GLightbox JS + Supabase + JSZip + FileSaver -->
-  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" defer></script>
-
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const sb = supabase.createClient('<YOUR_SUPABASE_URL>', '<YOUR_SUPABASE_ANON_KEY>');
-      const BUCKET = 'wedding-photos';
+document.addEventListener('DOMContentLoaded', () => {
+  // 1) Supabase client
+  const { SUPABASE_URL, SUPABASE_ANON_KEY, BUCKET } = window.__ENV__ || {};
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return console.error('Missing Supabase env variables');
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-      const fileInput   = document.getElementById('fileInput');
-      const preview     = document.getElementById('preview');
-      const gallery     = document.getElementById('gallery');
-      const uploadBtn   = document.getElementById('uploadBtn');
-      const downloadBtn = document.getElementById('downloadAllBtn');
+  // 2) DOM refs
+  const fileInput   = document.getElementById('fileInput');
+  const preview     = document.getElementById('preview');
+  const gallery     = document.getElementById('gallery');
+  const uploadBtn   = document.getElementById('uploadBtn');
+  const downloadBtn = document.getElementById('downloadAllBtn');
 
-      let selectedFiles = [];
+  // 3) Track selected files
+  let selectedFiles = [];
 
-      function renderPreview(){
-        preview.innerHTML = '';
-        selectedFiles.forEach((file, i) => {
-          const w = document.createElement('div');
-          w.className = 'preview-item';
-          const img = document.createElement('img');
-          img.src = URL.createObjectURL(file);
-          img.alt = file.name;
-          const d = document.createElement('button');
-          d.className = 'preview-delete';
-          d.textContent = '×';
-          d.onclick = () => {
-            selectedFiles.splice(i, 1);
-            renderPreview();
-          };
-          w.append(img, d);
-          preview.appendChild(w);
-        });
-      }
-
-      fileInput.addEventListener('change', () => {
-        Array.from(fileInput.files).forEach(f => {
-          if (!selectedFiles.some(x => x.name === f.name && x.size === f.size)) {
-            selectedFiles.push(f);
-          }
-        });
-        renderPreview();
-      });
-
-      uploadBtn.addEventListener('click', async () => {
-        if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
-        const files = selectedFiles.filter(f => /\.(jpe?g|png)$/i.test(f.name));
-        if (!files.length) return alert('Csak JPEG/PNG formátum.');
-        for (const file of files) {
-          const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
-          const { error } = await sb.storage.from(BUCKET).upload(key, file);
-          if (error) console.error('Upload error:', error.message);
-        }
-        selectedFiles = [];
-        fileInput.value = '';
-        renderPreview();
-        await refreshGallery();
-      });
-
-      downloadBtn.addEventListener('click', async () => {
-        const { data: files = [] } = await sb.storage.from(BUCKET)
-          .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
-        if (!files.length) return alert('Nincs kép.');
-        const zip = new JSZip();
-        for (const f of files.filter(f => !f.name.startsWith('.'))) {
-          const { data } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-          const res = await fetch(data.publicUrl);
-          zip.file(f.name, await res.blob());
-        }
-        const blob = await zip.generateAsync({ type: 'blob' });
-        saveAs(blob, 'all_photos.zip');
-      });
-
-      let lightbox;
-      async function refreshGallery(){
-        gallery.innerHTML = '';
-        const { data: files = [] } = await sb.storage.from(BUCKET)
-          .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
-        for (const f of files.filter(f => !f.name.startsWith('.'))){
-          const { data } = sb.storage.from(BUCKET).getPublicUrl(f.name);
-          const item = document.createElement('div');
-          item.className = 'gallery-item';
-          const link = document.createElement('a');
-          link.href = data.publicUrl;
-          link.className = 'glightbox';
-          const img = document.createElement('img');
-          img.src = data.publicUrl;
-          img.alt = f.name;
-          link.appendChild(img);
-          const downloadLink = document.createElement('a');
-          downloadLink.href = data.publicUrl;
-          downloadLink.download = f.name;
-          downloadLink.textContent = 'Letöltés';
-          downloadLink.className = 'download-btn';
-          item.append(link, downloadLink);
-          gallery.appendChild(item);
-        }
-        if (!lightbox) {
-          lightbox = GLightbox({ selector: '.glightbox' });
-        } else {
-          lightbox.reload();
-        }
-      }
-
-      refreshGallery();
+  function renderPreview() {
+    preview.innerHTML = '';
+    selectedFiles.forEach((file,i) => {
+      const w = document.createElement('div'); w.className='preview-item';
+      const img = document.createElement('img');
+      img.src=URL.createObjectURL(file); img.alt=file.name;
+      const d = document.createElement('button');
+      d.className='preview-delete'; d.textContent='×'; d.title='Eltávolítás';
+      d.onclick = ()=>{ selectedFiles.splice(i,1); renderPreview(); };
+      w.append(img,d); preview.appendChild(w);
     });
-  </script>
+  }
+
+  fileInput.addEventListener('change', ()=>{
+    Array.from(fileInput.files).forEach(f=>{
+      if(!selectedFiles.some(x=>x.name===f.name&&x.size===f.size)) selectedFiles.push(f);
+    });
+    renderPreview();
+  });
+
+  uploadBtn.addEventListener('click', async ()=>{
+    if(!selectedFiles.length) return alert('Kérlek válassz képeket.');
+    const files = selectedFiles.filter(f=>/\.(jpe?g|png)$/i.test(f.name));
+    if(files.length<selectedFiles.length) alert('HEIC nem támogatott – konvertáld JPEG/PNG formátumra.');
+    if(!files.length) return;
+    for(const file of files){
+      const key=`${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
+      const {error}=await sb.storage.from(BUCKET).upload(key,file,{cacheControl:'3600',upsert:false});
+      if(error) console.error('Upload error:',error.message);
+    }
+    selectedFiles=[]; fileInput.value=''; renderPreview();
+    await refreshGallery();
+  });
+
+  downloadBtn.addEventListener('click', async ()=>{
+    const {data:files=[]}=await sb.storage.from(BUCKET)
+      .list('',{limit:100,sortBy:{column:'created_at',order:'desc'}});
+    if(!files.length) return alert('Nincs kép.');
+    const zip=new JSZip();
+    for(const f of files.filter(f=>!f.name.startsWith('.'))){
+      const {data}=sb.storage.from(BUCKET).getPublicUrl(f.name);
+      const res=await fetch(data.publicUrl);
+      zip.file(f.name,await res.blob());
+    }
+    const blob=await zip.generateAsync({type:'blob'});
+    saveAs(blob,'all_photos.zip');
+  });
+
+  // 4) Set up GLightbox instance
+  let lightbox;
+
+  // 5) Refresh gallery
+  async function refreshGallery(){
+    gallery.innerHTML='';
+    const {data:files=[]}=await sb.storage.from(BUCKET)
+      .list('',{limit:100,sortBy:{column:'created_at',order:'desc'}});
+    for(const f of files.filter(f=>!f.name.startsWith('.'))){
+      const {data}=sb.storage.from(BUCKET).getPublicUrl(f.name);
+      const a=document.createElement('a');
+      a.href=data.publicUrl;
+      a.className='glightbox';
+      a.dataset.gallery='gallery';
+      const img=document.createElement('img');
+      img.src=data.publicUrl; img.alt=f.name;
+      a.appendChild(img); gallery.appendChild(a);
+    }
+    // init or reload GLightbox
+    if(!lightbox){
+      lightbox = GLightbox({
+        selector: '#gallery a.glightbox',
+        openEffect: 'fade',
+        slideEffect: 'slide',
+        touchNavigation: true,
+        loop: false,
+        zoomable: true
+      });
+    } else {
+      lightbox.reload();
+    }
+  }
+
+  // 6) Initial load
+  refreshGallery();
+});
+</script>
 </body>
 </html>
