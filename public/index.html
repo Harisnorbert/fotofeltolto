@@ -23,18 +23,21 @@
 <body>
   <div class="container">
     <img src="hatter.jpg" alt="Móni és Tomi" class="hero-image">
-    <h1>Móni és Tomi <br/>esküvői fotói</h1>
+    <h1>Móni és Tomi<br/>esküvői fotói</h1>
 
+    <!-- Preview of selected files -->
     <div id="preview"></div>
 
+    <!-- Controls -->
     <div class="controls">
-      <label for="fileInput" class="file-label">Válassz képeket</label>
-      <!-- most minden képformátumot elfogadunk -->
+      <label for="fileInput" class="file-label">📁 Válassz képeket</label>
+      <!-- image/* engedi a PNG-t is -->
       <input type="file" id="fileInput" multiple accept="image/*" />
       <button class="btn" id="uploadBtn">Feltöltés</button>
       <button class="btn" id="downloadAllBtn">Összes letöltése</button>
     </div>
 
+    <!-- Gallery -->
     <div id="gallery"></div>
   </div>
 
@@ -58,51 +61,54 @@
       uploadBtn.style.display = selectedFiles.length > 0 ? 'inline-flex' : 'none';
       preview.innerHTML = '';
       selectedFiles.forEach((file, i) => {
-        const w = document.createElement('div'); w.className='preview-item';
+        const w = document.createElement('div'); w.className = 'preview-item';
         const img = document.createElement('img');
         img.src = URL.createObjectURL(file); img.alt = file.name;
         const d = document.createElement('button');
-        d.className='preview-delete'; d.textContent='×'; d.title='Eltávolítás';
+        d.className = 'preview-delete'; d.textContent = '×'; d.title = 'Eltávolítás';
         d.onclick = () => { selectedFiles.splice(i,1); renderPreview(); };
-        w.append(img,d); preview.appendChild(w);
+        w.append(img, d); preview.appendChild(w);
       });
     }
 
     fileInput.addEventListener('change', () => {
       Array.from(fileInput.files).forEach(f => {
-        if (!selectedFiles.some(x => x.name===f.name && x.size===f.size))
+        if (!selectedFiles.some(x => x.name === f.name && x.size === f.size)) {
           selectedFiles.push(f);
+        }
       });
       renderPreview();
     });
 
     uploadBtn.addEventListener('click', async () => {
       if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
-      // MIME-típus szerint szűrünk, így a PNG biztosan átmegy
+
+      // MIME-típus alapján szűrünk – image/png, image/jpeg, stb.
       const files = selectedFiles.filter(f => f.type.startsWith('image/'));
-      if (files.length < selectedFiles.length)
+      if (files.length < selectedFiles.length) {
         alert('Csak képfájlokat tölthetsz fel.');
+      }
       if (!files.length) return;
 
       for (const file of files) {
         const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
-        const { error } = await sb.storage.from(BUCKET).upload(key, file, { cacheControl:'3600', upsert:false });
+        const { error } = await sb.storage.from(BUCKET)
+          .upload(key, file, { cacheControl:'3600', upsert:false });
         if (error) console.error('Upload error:', error.message);
       }
 
       selectedFiles = [];
       fileInput.value = '';
-      // friss galéria, aztán elrejtjük a Feltöltés gombot
       await refreshGallery();
       renderPreview();
     });
 
     downloadBtn.addEventListener('click', async () => {
-      const { data:files=[] } = await sb.storage.from(BUCKET)
-        .list('', { limit:100, sortBy:{column:'created_at',order:'desc'} });
+      const { data: files = [] } = await sb.storage.from(BUCKET)
+        .list('', { limit:100, sortBy:{ column:'created_at', order:'desc' } });
       if (!files.length) return alert('Nincs kép.');
       const zip = new JSZip();
-      for (const f of files.filter(f=>!f.name.startsWith('.'))) {
+      for (const f of files.filter(f => !f.name.startsWith('.'))) {
         const { data } = sb.storage.from(BUCKET).getPublicUrl(f.name);
         const res = await fetch(data.publicUrl);
         zip.file(f.name, await res.blob());
@@ -111,7 +117,7 @@
       saveAs(blob, 'all_photos.zip');
     });
 
-    // GLightbox + download gomb a slide-okban
+    // GLightbox + download in lightbox
     const lightbox = GLightbox({
       selector: '#gallery a.glightbox',
       openEffect: 'fade',
@@ -132,7 +138,9 @@
           const res = await fetch(slideConfig.href);
           const blob = await res.blob();
           saveAs(blob, slideConfig.title || `photo_${Date.now()}.jpg`);
-        } catch(err) { console.error('Letöltési hiba:', err); }
+        } catch(err) {
+          console.error('Letöltési hiba:', err);
+        }
       };
       slideNode.appendChild(btn);
     }
@@ -146,9 +154,9 @@
 
     async function refreshGallery() {
       gallery.innerHTML = '';
-      const { data:files=[] } = await sb.storage.from(BUCKET)
-        .list('', { limit:100, sortBy:{column:'created_at',order:'desc'} });
-      for (const f of files.filter(f=>!f.name.startsWith('.'))) {
+      const { data: files = [] } = await sb.storage.from(BUCKET)
+        .list('', { limit:100, sortBy:{ column:'created_at', order:'desc' } });
+      for (const f of files.filter(f => !f.name.startsWith('.'))) {
         const { data } = sb.storage.from(BUCKET).getPublicUrl(f.name);
         const a = document.createElement('a');
         a.href = data.publicUrl;
