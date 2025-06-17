@@ -64,8 +64,7 @@ h1 {
   display: inline-flex; align-items: center; justify-content: center;
   gap: 0.5rem; padding: 0.75rem 1.25rem; background: green;
   color: #fff; border: none; border-radius: 6px; cursor: pointer;
-  font-size: 1rem; font-family: 'Great Vibes', cursive;
-  transition: background 0.2s;
+  font-size: 1rem; font-family: 'Great Vibes', cursive; transition: background 0.2s;
 }
 .btn:hover { background: lightgreen; }
 
@@ -86,10 +85,7 @@ h1 {
   width: 100%; height: 100px; object-fit: cover; display: block;
 }
 
-/* Lightbox slide download button */
-.gslide-inner-content {
-  position: relative;
-}
+/* Lightbox download button */
 .glightbox-download-btn {
   position: absolute;
   top: 12px; right: 12px;
