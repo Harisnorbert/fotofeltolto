@@ -29,7 +29,8 @@
 
     <div class="controls">
       <label for="fileInput" class="file-label">Válassz képeket</label>
-      <input type="file" id="fileInput" multiple accept="image/jpeg,image/png" />
+      <!-- most minden képformátumot elfogadunk -->
+      <input type="file" id="fileInput" multiple accept="image/*" />
       <button class="btn" id="uploadBtn">Feltöltés</button>
       <button class="btn" id="downloadAllBtn">Összes letöltése</button>
     </div>
@@ -77,16 +78,21 @@
 
     uploadBtn.addEventListener('click', async () => {
       if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
-      const files = selectedFiles.filter(f => /\.(jpe?g|png)$/i.test(f.name));
+      // MIME-típus szerint szűrünk, így a PNG biztosan átmegy
+      const files = selectedFiles.filter(f => f.type.startsWith('image/'));
       if (files.length < selectedFiles.length)
-        alert('HEIC nem támogatott – konvertáld JPEG/PNG formátumra.');
+        alert('Csak képfájlokat tölthetsz fel.');
       if (!files.length) return;
+
       for (const file of files) {
         const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name}`;
         const { error } = await sb.storage.from(BUCKET).upload(key, file, { cacheControl:'3600', upsert:false });
         if (error) console.error('Upload error:', error.message);
       }
-      selectedFiles = []; fileInput.value=''; 
+
+      selectedFiles = [];
+      fileInput.value = '';
+      // friss galéria, aztán elrejtjük a Feltöltés gombot
       await refreshGallery();
       renderPreview();
     });
@@ -105,7 +111,7 @@
       saveAs(blob, 'all_photos.zip');
     });
 
-    // --- GLightbox + Download in Lightbox ---
+    // GLightbox + download gomb a slide-okban
     const lightbox = GLightbox({
       selector: '#gallery a.glightbox',
       openEffect: 'fade',
@@ -115,7 +121,6 @@
       zoomable: true
     });
 
-    // helper to inject button
     function injectDownloadBtn(slideNode, slideConfig) {
       if (slideNode.querySelector('.glightbox-download-btn')) return;
       const btn = document.createElement('button');
@@ -139,7 +144,6 @@
       injectDownloadBtn(slideNode, slideConfig);
     });
 
-    // --- refreshGallery ---
     async function refreshGallery() {
       gallery.innerHTML = '';
       const { data:files=[] } = await sb.storage.from(BUCKET)
