@@ -1,7 +1,7 @@
 /* Base resets and typography */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.5; }
-body { background: #f4f6f8; color: #333;  font-family: 'Great Vibes', cursive;}
+body { background: #f4f6f8; color: #333; font-family: 'Great Vibes', cursive; }
 
 /* Container */
 .container {
@@ -14,97 +14,58 @@ body { background: #f4f6f8; color: #333;  font-family: 'Great Vibes', cursive;}
 }
 
 h1 {
-  font-size: 1.75rem;
+  font-size: 2.5rem;
   margin-bottom: 1rem;
   text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
-h1 .icon { margin-right: 0.5rem; }
 
-img {
-  display: block;     /* removes default inline spacing */
-  margin: 0 auto;     /* centers the block horizontally */
-  width: 70%;         /* scale to fill its container */
-  max-width: 600px;   /* never grow wider than its natural/container max */
-  height: auto;       /* maintain aspect ratio */
+/* Hero image */
+.hero-image {
+  display: block;
+  margin: 0 auto 1rem;
+  width: 70%;
+  max-width: 600px;
+  height: auto;
 }
 
 /* Preview grid */
 #preview {
-  display: flex; 
-  flex-wrap: wrap; 
-  gap: .5rem; 
-  margin-bottom: 1rem;
+  display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem;
 }
 .preview-item {
-  position: relative; 
-  width: 80px; 
-  height: 80px;
-  border: 1px solid #ddd; 
-  border-radius: 4px; 
-  overflow: hidden;
+  position: relative; width: 80px; height: 80px;
+  border: 1px solid #ddd; border-radius: 4px; overflow: hidden;
 }
 .preview-item img {
-  width: 100%; 
-  height: 100%; 
-  object-fit: cover;
+  width: 100%; height: 100%; object-fit: cover;
 }
 .preview-delete {
-  position: absolute; 
-  top: 2px; 
-  right: 2px;
-  background: rgba(0,0,0,0.5); 
-  color: white; 
-  border: none;
-  width: 20px; 
-  height: 20px; 
-  border-radius: 50%; 
-  cursor: pointer;
-  font-size: 1rem; 
-  line-height: 1;
+  position: absolute; top: 2px; right: 2px;
+  background: rgba(0,0,0,0.5); color: #fff; border: none;
+  width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+  font-size: 1rem; line-height: 1;
 }
 
 /* Controls */
 .controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
-  margin-bottom: 1.5rem;
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  justify-content: center; margin-bottom: 1.5rem;
 }
 .controls input[type=file] { display: none; }
 .file-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #fff;
-  color: green;
-  border: 2px solid green;
-  border-radius: 6px;
-  padding: 0.75rem 1rem;
-  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: #fff; color: green; border: 2px solid green;
+  border-radius: 6px; padding: 0.75rem 1rem; cursor: pointer;
   transition: background 0.2s, color 0.2s;
-  font-size: 1.5rem;
+  font-size: 1rem; font-family: 'Great Vibes', cursive;
 }
 .file-label:hover { background: lightgreen; color: #fff; }
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
-  background: green;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 1.5rem;      /* larger script size */
-  line-height: 1.2;       /* tighten up vertical rhythm */
-  text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 0.5rem; padding: 0.75rem 1.25rem; background: green;
+  color: #fff; border: none; border-radius: 6px; cursor: pointer;
+  font-size: 1rem; font-family: 'Great Vibes', cursive;
   transition: background 0.2s;
-  font-family: 'Great Vibes', cursive;
 }
 .btn:hover { background: lightgreen; }
 
@@ -112,50 +73,32 @@ img {
 #gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px;
-  margin-top: 1rem;
-}
-#gallery a {
-  display: block;
-  border-radius: 6px;
-  overflow: hidden;
-  background: #eaeaea;
-  transition: transform 0.2s;
-}
-#gallery a:hover { transform: scale(1.03); }
-#gallery img {
-  width: 100%;
-  height: 100px;
-  object-fit: cover;
-  display: block;
+  gap: 12px; margin-top: 1rem;
 }
 
-/* Egyedi galéria-elem és letöltőgomb */
-.gallery-item {
-  text-align: center;
+/* Lightbox thumbnails */
+#gallery a.glightbox {
+  display: block; border-radius: 6px; overflow: hidden;
+  background: #eaeaea; transition: transform 0.2s;
 }
-.download-btn {
-  display: block;
-  margin: 4px auto 0;
-  padding: 4px 8px;
-  background: green;
-  color: #fff;
-  text-decoration: none;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  transition: background 0.2s;
-}
-.download-btn:hover {
-  background: lightgreen;
+#gallery a.glightbox:hover { transform: scale(1.03); }
+#gallery a.glightbox img {
+  width: 100%; height: 100px; object-fit: cover; display: block;
 }
 
-/* Lightbox képbeállítás */
-.pswp__img {
-  width: auto !important;
-  height: auto !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  object-fit: contain !important;
+/* Lightbox slide download button */
+.gslide-inner-content {
+  position: relative;
+}
+.glightbox-download-btn {
+  position: absolute;
+  top: 12px; right: 12px;
+  background: rgba(0,0,0,0.6); color: #fff; border: none;
+  border-radius: 4px; padding: 6px 10px; font-size: 1rem;
+  cursor: pointer; z-index: 10; transition: background 0.2s;
+}
+.glightbox-download-btn:hover {
+  background: rgba(0,0,0,0.8);
 }
 
 /* Responsive tweaks */
@@ -163,5 +106,5 @@ img {
   .controls { flex-direction: column; }
   .btn, .file-label { width: 100%; justify-content: center; }
   #preview img { height: 60px; }
-  #gallery img { height: 80px; }
+  #gallery a.glightbox img { height: 80px; }
 }
