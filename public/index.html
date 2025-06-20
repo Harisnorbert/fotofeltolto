@@ -103,26 +103,31 @@
 
     // Download all images as ZIP
     downloadBtn.addEventListener('click', async () => {
-      try {
-        const res = await fetch('/images');
-        if (!res.ok) throw new Error(`Hiba a képlistázásnál: ${res.status}`);
-        const { images } = await res.json();
-        if (!images.length) return alert('Nincsenek képek.');
+  try {
+    const res = await fetch('/images');
+    if (!res.ok) throw new Error(`Hiba a képlistázásnál: ${res.status}`);
+    const { images } = await res.json();
+    if (!images.length) return alert('Nincsenek képek.');
 
-        const zip = new JSZip();
-        await Promise.all(images.map(async img => {
-          const r = await fetch(img.url, { mode: 'cors' });
-          if (!r.ok) throw new Error(`Nem töltődött le: ${img.url}`);
-          const blob = await r.blob();
-          zip.file(img.name, blob);
-        }));
-        const zipBlob = await zip.generateAsync({ type:'blob' });
-        saveAs(zipBlob, 'all_photos.zip');
-      } catch(err) {
-        console.error('Letöltési hiba:', err);
-        alert('Hiba az összes kép letöltése közben:\n' + err.message);
-      }
-    });
+    const zip = new JSZip();
+
+    await Promise.all(images.map(async img => {
+      // IDE a proxy URL
+      const proxyUrl = '/.netlify/functions/proxy-image?url='
+                     + encodeURIComponent(img.url);
+      const r = await fetch(proxyUrl);
+      if (!r.ok) throw new Error(`Proxy fetch failed: ${r.status}`);
+      const blob = await r.blob();
+      zip.file(img.name, blob);
+    }));
+
+    const zipBlob = await zip.generateAsync({ type:'blob' });
+    saveAs(zipBlob, 'all_photos.zip');
+  } catch(err) {
+    console.error('Letöltési hiba:', err);
+    alert('Hiba az összes kép letöltése közben:\n' + err.message);
+  }
+});
 
     // Load gallery thumbnails and init GLightbox + download button in lightbox
     async function loadGallery() {
