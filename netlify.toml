@@ -14,3 +14,9 @@
   to      = "/.netlify/functions/images"
   status  = 200
   methods = ["GET"]
+
+[[redirects]]
+  from    = "/proxy-image"
+  to      = "/.netlify/functions/proxy-image"
+  status  = 200
+  methods = ["GET"]
