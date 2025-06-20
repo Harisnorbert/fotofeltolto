@@ -6,9 +6,11 @@
   <title>Esküvői fotók</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
 
-  <!-- CSS -->
+  <!-- Saját stílusok -->
   <link rel="stylesheet" href="styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+
+  <!-- GLightbox CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css"/>
 </head>
 <body>
@@ -16,8 +18,10 @@
     <img src="hatter.jpg" alt="Móni és Tomi" class="hero-image">
     <h1>Móni és Tomi<br/>esküvői fotói</h1>
 
+    <!-- Preview -->
     <div id="preview"></div>
 
+    <!-- Controls -->
     <div class="controls">
       <label for="fileInput" class="file-label">📁 Válassz képeket</label>
       <input type="file" id="fileInput" multiple accept="image/*" />
@@ -25,13 +29,14 @@
       <button class="btn" id="downloadAllBtn">Összes letöltése</button>
     </div>
 
+    <!-- Gallery -->
     <div id="gallery"></div>
   </div>
 
-  <!-- JS dependencies -->
+  <!-- JS-dependenciák -->
+  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js" defer></script>
 
   <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -44,22 +49,35 @@
 
     function renderPreview() {
       preview.innerHTML = '';
-      selectedFiles.forEach((file,i) => {
-        const w = document.createElement('div'); w.className='preview-item';
+      selectedFiles.forEach((file, i) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'preview-item';
+
         const img = document.createElement('img');
-        img.src = URL.createObjectURL(file); img.alt = file.name;
-        const d = document.createElement('button');
-        d.className='preview-delete'; d.textContent='×'; d.title='Eltávolítás';
-        d.onclick = ()=>{ selectedFiles.splice(i,1); renderPreview(); };
-        w.append(img,d); preview.appendChild(w);
+        img.src = URL.createObjectURL(file);
+        img.alt = file.name;
+
+        const del = document.createElement('button');
+        del.className = 'preview-delete';
+        del.textContent = '×';
+        del.title = 'Eltávolítás';
+        del.onclick = () => {
+          selectedFiles.splice(i, 1);
+          renderPreview();
+        };
+
+        wrapper.append(img, del);
+        preview.appendChild(wrapper);
       });
+
       uploadBtn.style.display = selectedFiles.length ? 'inline-flex' : 'none';
     }
 
     fileInput.addEventListener('change', () => {
       Array.from(fileInput.files).forEach(f => {
-        if (!selectedFiles.some(x=>x.name===f.name&&x.size===f.size))
+        if (!selectedFiles.some(x => x.name === f.name && x.size === f.size)) {
           selectedFiles.push(f);
+        }
       });
       renderPreview();
     });
@@ -69,7 +87,7 @@
       const form = new FormData();
       selectedFiles.forEach(f => form.append('files', f));
 
-      const res = await fetch('/upload', { method:'POST', body: form });
+      const res = await fetch('/upload', { method: 'POST', body: form });
       const json = await res.json();
       if (res.ok) {
         selectedFiles = [];
@@ -77,7 +95,7 @@
         renderPreview();
         await loadGallery();
       } else {
-        alert('Hiba: ' + json.error);
+        alert('Hiba: ' + (json.error || 'Ismeretlen hiba'));
       }
     });
 
@@ -88,10 +106,10 @@
 
       const zip = new JSZip();
       for (const img of images) {
-        const b = await fetch(img.url).then(r=>r.blob());
-        zip.file(img.name, b);
+        const blob = await fetch(img.url).then(r => r.blob());
+        zip.file(img.name, blob);
       }
-      const blob = await zip.generateAsync({ type:'blob' });
+      const blob = await zip.generateAsync({ type: 'blob' });
       saveAs(blob, 'all_photos.zip');
     });
 
@@ -99,23 +117,39 @@
       gallery.innerHTML = '';
       const res = await fetch('/images');
       const { images } = await res.json();
-      images.forEach(img => {
-        const item = document.createElement('div'); item.className='gallery-item';
+      for (const img of images) {
+        const item = document.createElement('div');
+        item.className = 'gallery-item';
 
-        const a = document.createElement('a');
-        a.href = img.url; a.className='glightbox'; a.dataset.gallery='gallery';
+        const link = document.createElement('a');
+        link.href = img.url;
+        link.className = 'glightbox';
+        link.dataset.gallery = 'gallery';
+
         const thumb = document.createElement('img');
-        thumb.src = img.url; thumb.alt = img.name;
-        a.appendChild(thumb);
+        thumb.src = img.url;
+        thumb.alt = img.name;
+
+        link.appendChild(thumb);
 
         const dl = document.createElement('a');
-        dl.href = img.url; dl.download = img.name;
-        dl.textContent = 'Letöltés'; dl.className='download-btn';
+        dl.href = img.url;
+        dl.download = img.name;
+        dl.textContent = 'Letöltés';
+        dl.className = 'download-btn';
 
-        item.append(a, dl);
+        item.append(link, dl);
         gallery.appendChild(item);
+      }
+
+      const lightbox = GLightbox({
+        selector: '#gallery a.glightbox',
+        openEffect: 'fade',
+        slideEffect: 'slide',
+        touchNavigation: true,
+        loop: false,
+        zoomable: true
       });
-      const lightbox = GLightbox({ selector:'#gallery a.glightbox' });
       lightbox.reload();
     }
 

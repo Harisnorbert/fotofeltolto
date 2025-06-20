@@ -1,4 +1,15 @@
 [build]
-  # if you need to install deps:
-  # command = "npm install"
-  publish = "public"
+  command   = "npm run build-env && npm run build"
+  publish   = "public"
+
+[[redirects]]
+  from = "/upload"
+  to = "/.netlify/functions/upload"
+  status = 200
+  methods = ["POST"]
+
+[[redirects]]
+  from = "/images"
+  to = "/.netlify/functions/images"
+  status = 200
+  methods = ["GET"]
