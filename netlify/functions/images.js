@@ -28,7 +28,7 @@ exports.handler = async () => {
     }));
 
     // Build public URLs via the r2.dev domain
-    const pubBase = `https://${R2_BUCKET}.${R2_ACCOUNT_ID}.r2.dev`;
+    const pubBase = `https://pub-edb93168c3a446c5bc64981dcf26d223.r2.dev`;
 
     const images = Contents
       .filter(o => !o.Key.startsWith('.'))
