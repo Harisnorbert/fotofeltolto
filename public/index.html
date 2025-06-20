@@ -6,22 +6,10 @@
   <title>Esküvői fotók</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
 
-  <!-- Base styles & Google Font -->
+  <!-- CSS -->
   <link rel="stylesheet" href="styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
-
-  <!-- GLightbox CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css"/>
-
-  <!-- env.js MUST be first so window.__ENV__ is ready -->
-  <script src="/env.js"></script>
-  <!-- AWS SDK v2 for browser -->
-  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1354.0.min.js"></script>
-  <!-- ZIP and FileSaver -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-  <!-- GLightbox JS -->
-  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -29,47 +17,32 @@
     <h1>Móni és Tomi<br/>esküvői fotói</h1>
 
     <div id="preview"></div>
+
     <div class="controls">
       <label for="fileInput" class="file-label">📁 Válassz képeket</label>
       <input type="file" id="fileInput" multiple accept="image/*" />
-      <button class="btn" id="uploadBtn">Feltöltés</button>
+      <button class="btn" id="uploadBtn" style="display:none">Feltöltés</button>
       <button class="btn" id="downloadAllBtn">Összes letöltése</button>
     </div>
+
     <div id="gallery"></div>
   </div>
 
+  <!-- JS dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js" defer></script>
+
   <script>
-  // Mindent body végén, hogy a glightbox deferje is betöltődjön
-  (async function(){
-    // 1) ENV betöltése
-    const { R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY } = window.__ENV__ || {};
-    if (!R2_ACCOUNT_ID || !R2_BUCKET || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
-      console.error('Hiányzó R2 környezeti változók');
-      return;
-    }
-
-    // 2) AWS SDK init Cloudflare R2-hoz
-    AWS.config.update({
-      accessKeyId: R2_ACCESS_KEY_ID,
-      secretAccessKey: R2_SECRET_ACCESS_KEY,
-      region: 'auto'
-    });
-    const r2 = new AWS.S3({
-      endpoint: new AWS.Endpoint(`${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`),
-      signatureVersion: 'v4',
-      params: { Bucket: R2_BUCKET }
-    });
-
-    // 3) DOM referenciák
+  document.addEventListener('DOMContentLoaded', () => {
     const fileInput   = document.getElementById('fileInput');
     const preview     = document.getElementById('preview');
-    const gallery     = document.getElementById('gallery');
     const uploadBtn   = document.getElementById('uploadBtn');
     const downloadBtn = document.getElementById('downloadAllBtn');
+    const gallery     = document.getElementById('gallery');
     let selectedFiles = [];
 
     function renderPreview() {
-      uploadBtn.style.display = selectedFiles.length ? 'inline-flex' : 'none';
       preview.innerHTML = '';
       selectedFiles.forEach((file,i) => {
         const w = document.createElement('div'); w.className='preview-item';
@@ -80,6 +53,7 @@
         d.onclick = ()=>{ selectedFiles.splice(i,1); renderPreview(); };
         w.append(img,d); preview.appendChild(w);
       });
+      uploadBtn.style.display = selectedFiles.length ? 'inline-flex' : 'none';
     }
 
     fileInput.addEventListener('change', () => {
@@ -90,77 +64,63 @@
       renderPreview();
     });
 
-    // 4) Feltöltés Cloudflare R2-re
     uploadBtn.addEventListener('click', async () => {
-      if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
-      const files = selectedFiles.filter(f=>f.type.startsWith('image/'));
-      if (!files.length) return alert('Csak képfájlokat tölthetsz fel.');
+      if (!selectedFiles.length) return;
+      const form = new FormData();
+      selectedFiles.forEach(f => form.append('files', f));
 
-      for (const file of files) {
-        // fájlnév normalizálása
-        const base = file.name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'');
-        const safe = base.toLowerCase()
-                         .replace(/[^a-z0-9._-]/g,'_')
-                         .replace(/_+/g,'_')
-                         .replace(/^[_-]+|[_-]+$/g,'');
-        const key = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${safe}`;
-        try {
-          await r2.upload({ Key:key, Body:file, ContentType:file.type }).promise();
-        } catch(err) {
-          console.error('Feltöltési hiba:', err);
-          alert(`Feltöltési hiba: ${err.message}`);
-        }
+      const res = await fetch('/upload', { method:'POST', body: form });
+      const json = await res.json();
+      if (res.ok) {
+        selectedFiles = [];
+        fileInput.value = '';
+        renderPreview();
+        await loadGallery();
+      } else {
+        alert('Hiba: ' + json.error);
       }
-
-      selectedFiles = [];
-      fileInput.value = '';
-      await refreshGallery();
-      renderPreview();
     });
 
-    // 5) Összes letöltése (ZIP)
     downloadBtn.addEventListener('click', async () => {
+      const res = await fetch('/images');
+      const { images } = await res.json();
+      if (!images.length) return alert('Nincs kép.');
+
       const zip = new JSZip();
-      // lekérjük az első 1000 objektumot
-      const res = await r2.listObjectsV2({ MaxKeys:1000 }).promise();
-      if (!res.Contents.length) return alert('Nincs kép.');
-      for (const obj of res.Contents) {
-        const url = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${encodeURIComponent(obj.Key)}`;
-        const b = await fetch(url).then(r=>r.blob());
-        zip.file(obj.Key, b);
+      for (const img of images) {
+        const b = await fetch(img.url).then(r=>r.blob());
+        zip.file(img.name, b);
       }
       const blob = await zip.generateAsync({ type:'blob' });
-      saveAs(blob,'all_photos.zip');
+      saveAs(blob, 'all_photos.zip');
     });
 
-    // 6) Galéria frissítés
-    async function refreshGallery() {
+    async function loadGallery() {
       gallery.innerHTML = '';
-      const res = await r2.listObjectsV2({ MaxKeys:1000 }).promise();
-      for (const obj of res.Contents) {
-        const url = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${encodeURIComponent(obj.Key)}`;
+      const res = await fetch('/images');
+      const { images } = await res.json();
+      images.forEach(img => {
+        const item = document.createElement('div'); item.className='gallery-item';
+
         const a = document.createElement('a');
-        a.href=url; a.className='glightbox'; a.dataset.gallery='gallery';
-        const img = document.createElement('img');
-        img.src=url; img.alt=obj.Key;
-        a.appendChild(img);
-        gallery.appendChild(a);
-      }
-      // init / reload GLightbox
-      const lightbox = GLightbox({
-        selector:'#gallery a.glightbox',
-        openEffect:'fade',
-        slideEffect:'slide',
-        touchNavigation:true,
-        loop:false,
-        zoomable:true
+        a.href = img.url; a.className='glightbox'; a.dataset.gallery='gallery';
+        const thumb = document.createElement('img');
+        thumb.src = img.url; thumb.alt = img.name;
+        a.appendChild(thumb);
+
+        const dl = document.createElement('a');
+        dl.href = img.url; dl.download = img.name;
+        dl.textContent = 'Letöltés'; dl.className='download-btn';
+
+        item.append(a, dl);
+        gallery.appendChild(item);
       });
+      const lightbox = GLightbox({ selector:'#gallery a.glightbox' });
       lightbox.reload();
     }
 
-    await refreshGallery();
-
-  })(); // IIFE vége
+    loadGallery();
+  });
   </script>
 </body>
 </html>

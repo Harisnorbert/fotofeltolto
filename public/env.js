@@ -1,5 +1,6 @@
 window.__ENV__ = {
-    SUPABASE_URL:'https://ewgczawouwmstlzvcdaf.supabase.co',
-    SUPABASE_ANON_KEY:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z2N6YXdvdXdtc3RsenZjZGFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3OTYzMTMsImV4cCI6MjA2NTM3MjMxM30.Hp_85TP0lvaHumxe0YgHzLHUS0s-wSKUV9c6z4Kjuy8',
-    BUCKET:'fotok'
+  "R2_ACCOUNT_ID": "76ae3e2722261d3cc9eae901757c9931",
+  "R2_BUCKET": "fotok",
+  "R2_ACCESS_KEY_ID": "b361f8b1d14ee129e74794f612e20faf",
+  "R2_SECRET_ACCESS_KEY": "9aa887c771bfda04ed56a5c4fedfceb2b4f5084ad472c02563fc37de13ac9a3c"
 };
