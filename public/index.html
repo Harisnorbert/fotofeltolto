@@ -25,12 +25,12 @@
     <div class="controls">
       <label for="fileInput" class="file-label">📁 Válassz képeket</label>
       <input type="file" id="fileInput" multiple accept="image/*" />
-      <button class="btn" id="uploadBtn" style="display:none">Feltöltés</button>
+      <button class="btn" id="uploadBtn">Feltöltés</button>
       <button class="btn" id="downloadAllBtn">Összes letöltése</button>
     </div>
 
     <!-- Gallery -->
-    <div id="gallery" class="gallery-grid"></div>
+    <div id="gallery"></div>
   </div>
 
   <!-- JS-dependenciák -->
@@ -48,11 +48,12 @@
     let selectedFiles = [];
     let lightbox = null;
 
+    // Show/hide upload button and render preview thumbnails
     function renderPreview() {
       preview.innerHTML = '';
       selectedFiles.forEach((file, i) => {
-        const w = document.createElement('div');
-        w.className = 'preview-item';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'preview-item';
         const img = document.createElement('img');
         img.src = URL.createObjectURL(file);
         img.alt = file.name;
@@ -64,12 +65,13 @@
           selectedFiles.splice(i,1);
           renderPreview();
         };
-        w.append(img, del);
-        preview.appendChild(w);
+        wrapper.append(img, del);
+        preview.appendChild(wrapper);
       });
       uploadBtn.style.display = selectedFiles.length ? 'inline-flex' : 'none';
     }
 
+    // Handle file selection
     fileInput.addEventListener('change', () => {
       Array.from(fileInput.files).forEach(f => {
         if (!selectedFiles.some(x=>x.name===f.name&&x.size===f.size)) {
@@ -79,41 +81,63 @@
       renderPreview();
     });
 
+    // Upload selected files via Netlify Function
     uploadBtn.addEventListener('click', async () => {
       if (!selectedFiles.length) return;
       const form = new FormData();
       selectedFiles.forEach(f => form.append('files', f));
 
-      const res = await fetch('/upload', { method:'POST', body: form });
-      const json = await res.json();
-      if (res.ok) {
+      try {
+        const res = await fetch('/upload', { method:'POST', body: form });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Ismeretlen hiba');
         selectedFiles = [];
         fileInput.value = '';
         renderPreview();
         await loadGallery();
-      } else {
-        alert('Hiba: ' + (json.error||'Ismeretlen hiba'));
+      } catch(err) {
+        console.error('Feltöltési hiba:', err);
+        alert('Hiba: ' + err.message);
       }
     });
 
+    // Download all images as ZIP
     downloadBtn.addEventListener('click', async () => {
-      const res = await fetch('/images');
-      const { images } = await res.json();
-      if (!images.length) return alert('Nincs kép.');
+      try {
+        const res = await fetch('/images');
+        if (!res.ok) throw new Error(`Hiba a képlistázásnál: ${res.status}`);
+        const { images } = await res.json();
+        if (!images.length) return alert('Nincsenek képek.');
 
-      const zip = new JSZip();
-      for (const img of images) {
-        const blob = await fetch(img.url).then(r=>r.blob());
-        zip.file(img.name, blob);
+        const zip = new JSZip();
+        await Promise.all(images.map(async img => {
+          const r = await fetch(img.url, { mode: 'cors' });
+          if (!r.ok) throw new Error(`Nem töltődött le: ${img.url}`);
+          const blob = await r.blob();
+          zip.file(img.name, blob);
+        }));
+        const zipBlob = await zip.generateAsync({ type:'blob' });
+        saveAs(zipBlob, 'all_photos.zip');
+      } catch(err) {
+        console.error('Letöltési hiba:', err);
+        alert('Hiba az összes kép letöltése közben:\n' + err.message);
       }
-      const blob = await zip.generateAsync({ type:'blob' });
-      saveAs(blob, 'all_photos.zip');
     });
 
+    // Load gallery thumbnails and init GLightbox + download button in lightbox
     async function loadGallery() {
       gallery.innerHTML = '';
-      const res = await fetch('/images');
-      const { images } = await res.json();
+      let images = [];
+      try {
+        const res = await fetch('/images');
+        if (!res.ok) throw new Error(`Képlistázási hiba: ${res.status}`);
+        const json = await res.json();
+        images = Array.isArray(json.images) ? json.images : [];
+      } catch(err) {
+        console.error('Galéria betöltési hiba:', err);
+        gallery.innerHTML = '<p>Nem sikerült betölteni a képeket.</p>';
+        return;
+      }
 
       images.forEach(img => {
         const item = document.createElement('div');
@@ -129,17 +153,10 @@
         thumb.alt = img.name;
         link.appendChild(thumb);
 
-        const dl = document.createElement('a');
-        dl.href = img.url;
-        dl.download = img.name;
-        dl.textContent = 'Letöltés';
-        dl.className = 'download-btn';
-
-        item.append(link, dl);
+        item.appendChild(link);
         gallery.appendChild(item);
       });
 
-      // Initialize or reload GLightbox
       if (!lightbox) {
         lightbox = GLightbox({
           selector: '#gallery a.glightbox',
@@ -149,12 +166,40 @@
           loop: false,
           zoomable: true
         });
+        lightbox.on('slide_after_load', ({ slideNode, slideConfig }) => {
+          injectDownloadBtn(slideNode, slideConfig);
+        });
+        lightbox.on('slide_changed', ({ slideNode, slideConfig }) => {
+          injectDownloadBtn(slideNode, slideConfig);
+        });
       } else {
         lightbox.reload();
       }
     }
 
-    // első betöltés
+    // Inject download button into each lightbox slide
+    function injectDownloadBtn(slideNode, slideConfig) {
+      if (slideNode.querySelector('.glightbox-download-btn')) return;
+      const btn = document.createElement('button');
+      btn.className = 'glightbox-download-btn';
+      btn.textContent = 'Letöltés';
+      btn.onclick = async e => {
+        e.stopPropagation();
+        try {
+          const res = await fetch(slideConfig.href, { mode: 'cors' });
+          if (!res.ok) throw new Error('Letöltés sikertelen');
+          const blob = await res.blob();
+          saveAs(blob, slideConfig.title || slideConfig.href.split('/').pop());
+        } catch(err) {
+          console.error('Letöltési hiba:', err);
+          alert('Hiba a letöltésnél: ' + err.message);
+        }
+      };
+      slideNode.appendChild(btn);
+    }
+
+    // Inicializálás
+    renderPreview();
     loadGallery();
   });
   </script>
