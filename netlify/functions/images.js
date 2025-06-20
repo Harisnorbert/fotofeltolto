@@ -1,19 +1,18 @@
-// netlify/functions/images.js
 const { S3Client, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 require('dotenv').config();
 
 const {
-  R2_ACCOUNT_ID,    // pl. 76ae3e2722261d3cc9eae901757c9931
-  R2_BUCKET,        // pl. fotok
+  R2_ACCOUNT_ID,
+  R2_BUCKET,
   R2_ACCESS_KEY_ID,
   R2_SECRET_ACCESS_KEY
 } = process.env;
 
-// Public Dev URL, amit most engedélyeztél
-const DEV_BASE = `https://${R2_BUCKET}.${R2_ACCOUNT_ID}.r2.dev`;
+// API endpoint: cloudflarestorage.com domain!
+const apiEndpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 
 const s3 = new S3Client({
-  endpoint: `${DEV_BASE}`,  // bár a ListObjectsV2 parancs erre megy
+  endpoint: apiEndpoint,
   region: 'auto',
   credentials: {
     accessKeyId: R2_ACCESS_KEY_ID,
@@ -28,12 +27,14 @@ exports.handler = async () => {
       MaxKeys: 1000
     }));
 
+    // Build public URLs via the r2.dev domain
+    const pubBase = `https://${R2_BUCKET}.${R2_ACCOUNT_ID}.r2.dev`;
+
     const images = Contents
       .filter(o => !o.Key.startsWith('.'))
       .map(o => ({
         name: o.Key,
-        // IDE építjük be a PUBLIC DEV HOST-ot + bucket név nélkül, mert a {bucket}.{account}.r2.dev már tartalmazza a bucketet
-        url: `${DEV_BASE}/${encodeURIComponent(o.Key)}`
+        url: `${pubBase}/${encodeURIComponent(o.Key)}`
       }));
 
     return {
@@ -41,7 +42,7 @@ exports.handler = async () => {
       body: JSON.stringify({ images })
     };
   } catch (err) {
-    console.error(err);
+    console.error('R2 list error:', err);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: err.message })
