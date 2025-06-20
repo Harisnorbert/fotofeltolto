@@ -30,7 +30,7 @@
     </div>
 
     <!-- Gallery -->
-    <div id="gallery"></div>
+    <div id="gallery" class="gallery-grid"></div>
   </div>
 
   <!-- JS-dependenciák -->
@@ -46,36 +46,33 @@
     const downloadBtn = document.getElementById('downloadAllBtn');
     const gallery     = document.getElementById('gallery');
     let selectedFiles = [];
+    let lightbox = null;
 
     function renderPreview() {
       preview.innerHTML = '';
       selectedFiles.forEach((file, i) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'preview-item';
-
+        const w = document.createElement('div');
+        w.className = 'preview-item';
         const img = document.createElement('img');
         img.src = URL.createObjectURL(file);
         img.alt = file.name;
-
         const del = document.createElement('button');
         del.className = 'preview-delete';
         del.textContent = '×';
         del.title = 'Eltávolítás';
         del.onclick = () => {
-          selectedFiles.splice(i, 1);
+          selectedFiles.splice(i,1);
           renderPreview();
         };
-
-        wrapper.append(img, del);
-        preview.appendChild(wrapper);
+        w.append(img, del);
+        preview.appendChild(w);
       });
-
       uploadBtn.style.display = selectedFiles.length ? 'inline-flex' : 'none';
     }
 
     fileInput.addEventListener('change', () => {
       Array.from(fileInput.files).forEach(f => {
-        if (!selectedFiles.some(x => x.name === f.name && x.size === f.size)) {
+        if (!selectedFiles.some(x=>x.name===f.name&&x.size===f.size)) {
           selectedFiles.push(f);
         }
       });
@@ -87,7 +84,7 @@
       const form = new FormData();
       selectedFiles.forEach(f => form.append('files', f));
 
-      const res = await fetch('/upload', { method: 'POST', body: form });
+      const res = await fetch('/upload', { method:'POST', body: form });
       const json = await res.json();
       if (res.ok) {
         selectedFiles = [];
@@ -95,7 +92,7 @@
         renderPreview();
         await loadGallery();
       } else {
-        alert('Hiba: ' + (json.error || 'Ismeretlen hiba'));
+        alert('Hiba: ' + (json.error||'Ismeretlen hiba'));
       }
     });
 
@@ -106,10 +103,10 @@
 
       const zip = new JSZip();
       for (const img of images) {
-        const blob = await fetch(img.url).then(r => r.blob());
+        const blob = await fetch(img.url).then(r=>r.blob());
         zip.file(img.name, blob);
       }
-      const blob = await zip.generateAsync({ type: 'blob' });
+      const blob = await zip.generateAsync({ type:'blob' });
       saveAs(blob, 'all_photos.zip');
     });
 
@@ -117,7 +114,8 @@
       gallery.innerHTML = '';
       const res = await fetch('/images');
       const { images } = await res.json();
-      for (const img of images) {
+
+      images.forEach(img => {
         const item = document.createElement('div');
         item.className = 'gallery-item';
 
@@ -129,7 +127,6 @@
         const thumb = document.createElement('img');
         thumb.src = img.url;
         thumb.alt = img.name;
-
         link.appendChild(thumb);
 
         const dl = document.createElement('a');
@@ -140,19 +137,24 @@
 
         item.append(link, dl);
         gallery.appendChild(item);
-      }
-
-      const lightbox = GLightbox({
-        selector: '#gallery a.glightbox',
-        openEffect: 'fade',
-        slideEffect: 'slide',
-        touchNavigation: true,
-        loop: false,
-        zoomable: true
       });
-      lightbox.reload();
+
+      // Initialize or reload GLightbox
+      if (!lightbox) {
+        lightbox = GLightbox({
+          selector: '#gallery a.glightbox',
+          openEffect: 'fade',
+          slideEffect: 'slide',
+          touchNavigation: true,
+          loop: false,
+          zoomable: true
+        });
+      } else {
+        lightbox.reload();
+      }
     }
 
+    // első betöltés
     loadGallery();
   });
   </script>
