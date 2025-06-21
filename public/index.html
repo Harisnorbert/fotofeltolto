@@ -38,189 +38,127 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
-  <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const fileInput   = document.getElementById('fileInput');
-    const preview     = document.getElementById('preview');
-    const uploadBtn   = document.getElementById('uploadBtn');
-    const downloadBtn = document.getElementById('downloadAllBtn');
-    const gallery     = document.getElementById('gallery');
-    let selectedFiles = [];
-    let lightbox = null;
+  <script type="module">
+  // 1️⃣ Firebase SDK importálása
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
+  import {
+    getStorage,
+    ref as sRef,
+    uploadBytes,
+    listAll,
+    getDownloadURL
+  } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-storage.js";
 
-    // Show/hide upload button and render preview thumbnails
-    function renderPreview() {
-      preview.innerHTML = '';
-      selectedFiles.forEach((file, i) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'preview-item';
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
-        img.alt = file.name;
-        const del = document.createElement('button');
-        del.className = 'preview-delete';
-        del.textContent = '×';
-        del.title = 'Eltávolítás';
-        del.onclick = () => {
-          selectedFiles.splice(i,1);
-          renderPreview();
-        };
-        wrapper.append(img, del);
-        preview.appendChild(wrapper);
-      });
-      uploadBtn.style.display = selectedFiles.length ? 'inline-flex' : 'none';
-    }
+  // 2️⃣ Saját Firebase konfiguráció a konzolból
+  const firebaseConfig = {
+  apiKey: "AIzaSyD_etRFAwxvWuoL3Di58zuE1rFrqbDxcho",
+  authDomain: "fotofeltolto.firebaseapp.com",
+  projectId: "fotofeltolto",
+  storageBucket: "fotofeltolto.firebasestorage.app",
+  messagingSenderId: "760780717948",
+  appId: "1:760780717948:web:0adf6017cccefcff1aaef9",
+  measurementId: "G-8WWC4FGDM4"
+};
 
-    // Handle file selection
-    fileInput.addEventListener('change', () => {
-      Array.from(fileInput.files).forEach(f => {
-        if (!selectedFiles.some(x=>x.name===f.name&&x.size===f.size)) {
-          selectedFiles.push(f);
-        }
-      });
-      renderPreview();
+  // 3️⃣ Firebase inicializálása
+  const app       = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const storage   = getStorage(app);
+
+  // 4️⃣ DOM referenciák
+  const fileInput   = document.getElementById('fileInput');
+  const preview     = document.getElementById('preview');
+  const uploadBtn   = document.getElementById('uploadBtn');
+  const downloadBtn = document.getElementById('downloadAllBtn');
+  const gallery     = document.getElementById('gallery');
+  let selectedFiles = [];
+
+  // 5️⃣ Preview kezelés
+  function renderPreview() {
+    preview.innerHTML = '';
+    selectedFiles.forEach((file,i) => {
+      const w = document.createElement('div'); w.className='preview-item';
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file); img.alt = file.name;
+      const del = document.createElement('button');
+      del.className = 'preview-delete'; del.textContent = '×';
+      del.onclick = () => { selectedFiles.splice(i,1); renderPreview(); };
+      w.append(img,del); preview.appendChild(w);
     });
+    uploadBtn.style.display = selectedFiles.length ? 'inline-flex' : 'none';
+  }
+  fileInput.addEventListener('change', () => {
+    Array.from(fileInput.files).forEach(f => {
+      if (!selectedFiles.some(x=>x.name===f.name&&x.size===f.size)) selectedFiles.push(f);
+    });
+    renderPreview();
+  });
 
-    // Upload selected files via Netlify Function
-    uploadBtn.addEventListener('click', async () => {
-  if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
-
-  const form = new FormData();
-  selectedFiles.forEach(f => form.append('files', f));
-
-  try {
-    const res = await fetch('/upload', { method: 'POST', body: form });
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      // ha nem JSON jött vissza, olvassuk text-ként
-      const text = await res.text();
-      throw new Error(text || `Hiba: ${res.status}`);
+  // 6️⃣ Feltöltés Firebase Storage-ba
+  uploadBtn.addEventListener('click', async () => {
+    if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
+    for (const file of selectedFiles) {
+      const key = `${Date.now()}_${file.name}`;
+      const storageRef = sRef(storage, key);
+      try {
+        await uploadBytes(storageRef, file);
+      } catch(err) {
+        console.error('Feltöltési hiba:', err);
+        alert('Hiba a feltöltésnél: ' + err.message);
+      }
     }
-
-    if (!res.ok) {
-      throw new Error(data.error || 'Ismeretlen hiba');
-    }
-
-    // sikeres feltöltés
     selectedFiles = [];
     fileInput.value = '';
     renderPreview();
     await loadGallery();
-
-  } catch (err) {
-    console.error('Feltöltési hiba:', err);
-    alert('Feltöltési hiba:\n' + err.message);
-  }
-});
-
-    // Download all images as ZIP
-    downloadBtn.addEventListener('click', async () => {
-  try {
-    const res = await fetch('/images');
-    if (!res.ok) throw new Error(`Hiba a képlistázásnál: ${res.status}`);
-    const { images } = await res.json();
-    if (!images.length) return alert('Nincsenek képek.');
-
-    const zip = new JSZip();
-
-    await Promise.all(images.map(async img => {
-      // IDE a proxy URL
-      const proxyUrl = '/.netlify/functions/proxy-image?url='
-                     + encodeURIComponent(img.url);
-      const r = await fetch(proxyUrl);
-      if (!r.ok) throw new Error(`Proxy fetch failed: ${r.status}`);
-      const blob = await r.blob();
-      zip.file(img.name, blob);
-    }));
-
-    const zipBlob = await zip.generateAsync({ type:'blob' });
-    saveAs(zipBlob, 'all_photos.zip');
-  } catch(err) {
-    console.error('Letöltési hiba:', err);
-    alert('Hiba az összes kép letöltése közben:\n' + err.message);
-  }
-});
-
-    // Load gallery thumbnails and init GLightbox + download button in lightbox
-    async function loadGallery() {
-      gallery.innerHTML = '';
-      let images = [];
-      try {
-        const res = await fetch('/images');
-        if (!res.ok) throw new Error(`Képlistázási hiba: ${res.status}`);
-        const json = await res.json();
-        images = Array.isArray(json.images) ? json.images : [];
-      } catch(err) {
-        console.error('Galéria betöltési hiba:', err);
-        gallery.innerHTML = '<p>Nem sikerült betölteni a képeket.</p>';
-        return;
-      }
-
-      images.forEach(img => {
-        const item = document.createElement('div');
-        item.className = 'gallery-item';
-
-        const link = document.createElement('a');
-        link.href = img.url;
-        link.className = 'glightbox';
-        link.dataset.gallery = 'gallery';
-
-        const thumb = document.createElement('img');
-        thumb.src = img.url;
-        thumb.alt = img.name;
-        link.appendChild(thumb);
-
-        item.appendChild(link);
-        gallery.appendChild(item);
-      });
-
-      if (!lightbox) {
-        lightbox = GLightbox({
-          selector: '#gallery a.glightbox',
-          openEffect: 'fade',
-          slideEffect: 'slide',
-          touchNavigation: true,
-          loop: false,
-          zoomable: true
-        });
-        lightbox.on('slide_after_load', ({ slideNode, slideConfig }) => {
-          injectDownloadBtn(slideNode, slideConfig);
-        });
-        lightbox.on('slide_changed', ({ slideNode, slideConfig }) => {
-          injectDownloadBtn(slideNode, slideConfig);
-        });
-      } else {
-        lightbox.reload();
-      }
-    }
-
-    // Inject download button into each lightbox slide
-    function injectDownloadBtn(slideNode, slideConfig) {
-      if (slideNode.querySelector('.glightbox-download-btn')) return;
-      const btn = document.createElement('button');
-      btn.className = 'glightbox-download-btn';
-      btn.textContent = 'Letöltés';
-      btn.onclick = async e => {
-        e.stopPropagation();
-        try {
-          const res = await fetch(slideConfig.href, { mode: 'cors' });
-          if (!res.ok) throw new Error('Letöltés sikertelen');
-          const blob = await res.blob();
-          saveAs(blob, slideConfig.title || slideConfig.href.split('/').pop());
-        } catch(err) {
-          console.error('Letöltési hiba:', err);
-          alert('Hiba a letöltésnél: ' + err.message);
-        }
-      };
-      slideNode.appendChild(btn);
-    }
-
-    // Inicializálás
-    renderPreview();
-    loadGallery();
   });
-  </script>
+
+  // 7️⃣ Galéria betöltése és GLightbox init
+  async function loadGallery() {
+    gallery.innerHTML = '';
+    try {
+      const res = await listAll(sRef(storage, ''));
+      for (const itemRef of res.items) {
+        const url = await getDownloadURL(itemRef);
+        const a = document.createElement('a');
+        a.href = url; a.className = 'glightbox'; a.dataset.gallery = 'gallery';
+        const img = document.createElement('img');
+        img.src = url; img.alt = itemRef.name;
+        a.appendChild(img);
+        gallery.appendChild(a);
+      }
+      if (!window.myLightbox) {
+        window.myLightbox = GLightbox({ selector:'#gallery a.glightbox' });
+      } else {
+        window.myLightbox.reload();
+      }
+    } catch(err) {
+      console.error('Galéria hiba:', err);
+    }
+  }
+
+  // 8️⃣ Összes letöltése ZIP-be
+  downloadBtn.addEventListener('click', async () => {
+    try {
+      const zip = new JSZip();
+      const res = await listAll(sRef(storage, ''));
+      await Promise.all(res.items.map(async item => {
+        const url = await getDownloadURL(item);
+        const blob = await fetch(url).then(r=>r.blob());
+        zip.file(item.name, blob);
+      }));
+      const blob = await zip.generateAsync({ type:'blob' });
+      saveAs(blob, 'all_photos.zip');
+    } catch(err) {
+      console.error('ZIP letöltés hiba:', err);
+      alert('Hiba az összes letöltésekor: ' + err.message);
+    }
+  });
+
+  // 9️⃣ Inicializálás
+  renderPreview();
+  loadGallery();
+</script>
 </body>
 </html>
