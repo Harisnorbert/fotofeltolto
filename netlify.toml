@@ -1,22 +1,6 @@
+# netlify.toml
 [build]
-  functions = "netlify/functions"
-  command   = "npm run build-env && npm run build"
-  publish   = "public"
-
-[[redirects]]
-  from    = "/upload"
-  to      = "/.netlify/functions/upload"
-  status  = 200
-  methods = ["POST"]
-
-[[redirects]]
-  from    = "/images"
-  to      = "/.netlify/functions/images"
-  status  = 200
-  methods = ["GET"]
-
-[[redirects]]
-  from    = "/proxy-image"
-  to      = "/.netlify/functions/proxy-image"
-  status  = 200
-  methods = ["GET"]
+  # Nincs build lépés – egyszerűen kiszolgáljuk a public mappát
+  command = ""
+  # A publikus fájlok ebben a könyvtárban vannak
+  publish = "public"
