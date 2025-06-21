@@ -4,11 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Esküvői fotók</title>
-  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
 
   <!-- Saját stílusok -->
   <link rel="stylesheet" href="styles.css">
-  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
 
   <!-- GLightbox CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css"/>
@@ -23,7 +22,7 @@
 
     <!-- Controls -->
     <div class="controls">
-      <label for="fileInput" class="file-label">Válassz képeket</label>
+      <label for="fileInput" class="file-label">📁 Válassz képeket</label>
       <input type="file" id="fileInput" multiple accept="image/*" />
       <button class="btn" id="uploadBtn">Feltöltés</button>
       <button class="btn" id="downloadAllBtn">Összes letöltése</button>
@@ -33,132 +32,168 @@
     <div id="gallery"></div>
   </div>
 
-  <!-- JS-dependenciák -->
-  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js" defer></script>
+  <!-- GLightbox + JSZip + FileSaver.js -->
+  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
+  <!-- Firebase + alkalmazáslogika -->
   <script type="module">
-  // 1️⃣ Firebase SDK importálása
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-  //import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
-  import {
-    getStorage,
-    ref as sRef,
-    uploadBytes,
-    listAll,
-    getDownloadURL
-  } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-storage.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+    import {
+      getStorage,
+      ref as sRef,
+      uploadBytes,
+      listAll,
+      getDownloadURL
+    } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-storage.js";
 
-  // 2️⃣ Saját Firebase konfiguráció a konzolból
-  const firebaseConfig = {
-  apiKey: "AIzaSyD_etRFAwxvWuoL3Di58zuE1rFrqbDxcho",
-  authDomain: "fotofeltolto.firebaseapp.com",
-  projectId: "fotofeltolto",
-  storageBucket: "fotofeltolto.firebasestorage.app",
-  messagingSenderId: "760780717948",
-  appId: "1:760780717948:web:0adf6017cccefcff1aaef9",
-  measurementId: "G-8WWC4FGDM4"
-};
+    // 🔑 Firebase konfiguráció (a te projekted adatai)
+    const firebaseConfig = {
+      apiKey: "AIzaSyD_etRFAwxvWuoL3Di58zuE1rFrqbDxcho",
+      authDomain: "fotofeltolto.firebaseapp.com",
+      projectId: "fotofeltolto",
+      storageBucket: "fotofeltolto.firebasestorage.app",
+      messagingSenderId: "760780717948",
+      appId: "1:760780717948:web:0adf6017cccefcff1aaef9",
+      measurementId: "G-8WWC4FGDM4"
+    };
 
-  // 3️⃣ Firebase inicializálása
-  const app       = initializeApp(firebaseConfig);
-  //const analytics = getAnalytics(app);
-  const storage   = getStorage(app);
+    // Inicializálás
+    const app     = initializeApp(firebaseConfig);
+    const storage = getStorage(app);
 
-  // 4️⃣ DOM referenciák
-  const fileInput   = document.getElementById('fileInput');
-  const preview     = document.getElementById('preview');
-  const uploadBtn   = document.getElementById('uploadBtn');
-  const downloadBtn = document.getElementById('downloadAllBtn');
-  const gallery     = document.getElementById('gallery');
-  let selectedFiles = [];
+    // DOM elemek
+    const fileInput   = document.getElementById('fileInput');
+    const preview     = document.getElementById('preview');
+    const uploadBtn   = document.getElementById('uploadBtn');
+    const downloadBtn = document.getElementById('downloadAllBtn');
+    const gallery     = document.getElementById('gallery');
+    let selectedFiles = [];
 
-  // 5️⃣ Preview kezelés
-  function renderPreview() {
-    preview.innerHTML = '';
-    selectedFiles.forEach((file,i) => {
-      const w = document.createElement('div'); w.className='preview-item';
-      const img = document.createElement('img');
-      img.src = URL.createObjectURL(file); img.alt = file.name;
-      const del = document.createElement('button');
-      del.className = 'preview-delete'; del.textContent = '×';
-      del.onclick = () => { selectedFiles.splice(i,1); renderPreview(); };
-      w.append(img,del); preview.appendChild(w);
-    });
-    uploadBtn.style.display = selectedFiles.length ? 'inline-flex' : 'none';
-  }
-  fileInput.addEventListener('change', () => {
-    Array.from(fileInput.files).forEach(f => {
-      if (!selectedFiles.some(x=>x.name===f.name&&x.size===f.size)) selectedFiles.push(f);
-    });
-    renderPreview();
-  });
-
-  // 6️⃣ Feltöltés Firebase Storage-ba
-  uploadBtn.addEventListener('click', async () => {
-    if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
-    for (const file of selectedFiles) {
-      const key = `${Date.now()}_${file.name}`;
-      const storageRef = sRef(storage, key);
-      try {
-        await uploadBytes(storageRef, file);
-      } catch(err) {
-        console.error('Feltöltési hiba:', err);
-        alert('Hiba a feltöltésnél: ' + err.message);
-      }
-    }
-    selectedFiles = [];
-    fileInput.value = '';
-    renderPreview();
-    await loadGallery();
-  });
-
-  // 7️⃣ Galéria betöltése és GLightbox init
-  async function loadGallery() {
-    gallery.innerHTML = '';
-    try {
-      const res = await listAll(sRef(storage, ''));
-      for (const itemRef of res.items) {
-        const url = await getDownloadURL(itemRef);
-        const a = document.createElement('a');
-        a.href = url; a.className = 'glightbox'; a.dataset.gallery = 'gallery';
+    // 📑 Preview kirajzolása
+    function renderPreview() {
+      preview.innerHTML = '';
+      selectedFiles.forEach((file,i) => {
+        const w = document.createElement('div'); w.className='preview-item';
         const img = document.createElement('img');
-        img.src = url; img.alt = itemRef.name;
-        a.appendChild(img);
-        gallery.appendChild(a);
-      }
-      if (!window.myLightbox) {
-        window.myLightbox = GLightbox({ selector:'#gallery a.glightbox' });
-      } else {
-        window.myLightbox.reload();
-      }
-    } catch(err) {
-      console.error('Galéria hiba:', err);
+        img.src = URL.createObjectURL(file); img.alt = file.name;
+        const del = document.createElement('button');
+        del.className='preview-delete'; del.textContent='×'; del.title='Eltávolítás';
+        del.onclick = () => { selectedFiles.splice(i,1); renderPreview(); };
+        w.append(img,del);
+        preview.appendChild(w);
+      });
+      uploadBtn.style.display = selectedFiles.length ? 'inline-flex' : 'none';
     }
-  }
+    fileInput.addEventListener('change', () => {
+      Array.from(fileInput.files).forEach(f => {
+        if (!selectedFiles.some(x=>x.name===f.name&&x.size===f.size))
+          selectedFiles.push(f);
+      });
+      renderPreview();
+    });
 
-  // 8️⃣ Összes letöltése ZIP-be
-  downloadBtn.addEventListener('click', async () => {
-    try {
-      const zip = new JSZip();
-      const res = await listAll(sRef(storage, ''));
-      await Promise.all(res.items.map(async item => {
-        const url = await getDownloadURL(item);
-        const blob = await fetch(url).then(r=>r.blob());
-        zip.file(item.name, blob);
-      }));
-      const blob = await zip.generateAsync({ type:'blob' });
-      saveAs(blob, 'all_photos.zip');
-    } catch(err) {
-      console.error('ZIP letöltés hiba:', err);
-      alert('Hiba az összes letöltésekor: ' + err.message);
+    // ☁️ Feltöltés Firebase Storage-ba
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
+      for (const file of selectedFiles) {
+        const key = `${Date.now()}_${file.name}`;
+        const storageRef = sRef(storage, key);
+        try {
+          await uploadBytes(storageRef, file);
+        } catch(err) {
+          console.error('Feltöltési hiba:', err);
+          alert('Hiba a feltöltésnél: ' + err.message);
+        }
+      }
+      selectedFiles = [];
+      fileInput.value = '';
+      renderPreview();
+      await loadGallery();
+    });
+
+    // 🔍 Galéria betöltése GLightbox-szal + egyedi letöltés gomb
+    let lightbox = null;
+
+    function injectDownloadBtn(slideNode, slideConfig) {
+      if (slideNode.querySelector('.glightbox-download-btn')) return;
+      const btn = document.createElement('button');
+      btn.className = 'glightbox-download-btn';
+      btn.textContent = 'Letöltés';
+      btn.title = 'Kép letöltése';
+      btn.onclick = e => {
+        e.stopPropagation();
+        const link = document.createElement('a');
+        link.href = slideConfig.href;
+        link.download = slideConfig.href.split('/').pop().split('?')[0];
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+      slideNode.appendChild(btn);
     }
-  });
 
-  // 9️⃣ Inicializálás
-  renderPreview();
-  loadGallery();
-</script>
+    async function loadGallery() {
+      gallery.innerHTML = '';
+      try {
+        const res = await listAll(sRef(storage, ''));
+        for (const itemRef of res.items) {
+          const url = await getDownloadURL(itemRef);
+          const a = document.createElement('a');
+          a.href = url;
+          a.className = 'glightbox';
+          a.dataset.gallery = 'gallery';
+          const img = document.createElement('img');
+          img.src = url; img.alt = itemRef.name;
+          a.appendChild(img);
+          gallery.appendChild(a);
+        }
+        if (!lightbox) {
+          lightbox = GLightbox({
+            selector: '#gallery a.glightbox',
+            openEffect: 'fade',
+            slideEffect: 'slide',
+            touchNavigation: true,
+            loop: false,
+            zoomable: true
+          });
+          lightbox.on('slide_after_load', ({ slideNode, slideConfig }) => {
+            injectDownloadBtn(slideNode, slideConfig);
+          });
+          lightbox.on('slide_changed', ({ slideNode, slideConfig }) => {
+            injectDownloadBtn(slideNode, slideConfig);
+          });
+        } else {
+          lightbox.reload();
+        }
+      } catch(err) {
+        console.error('Galéria hiba:', err);
+        alert('Galéria betöltési hiba: ' + err.message);
+      }
+    }
+
+    // 📦 Összes letöltése ZIP-be
+    downloadBtn.addEventListener('click', async () => {
+      try {
+        const zip = new JSZip();
+        const res = await listAll(sRef(storage, ''));
+        await Promise.all(res.items.map(async itemRef => {
+          const url = await getDownloadURL(itemRef);
+          const blob = await fetch(url).then(r=>r.blob());
+          zip.file(itemRef.name, blob);
+        }));
+        const blob = await zip.generateAsync({ type:'blob' });
+        saveAs(blob, 'all_photos.zip');
+      } catch(err) {
+        console.error('ZIP letöltés hiba:', err);
+        alert('Hiba az összes letöltésekor: ' + err.message);
+      }
+    });
+
+    // 🚀 Indítás
+    renderPreview();
+    loadGallery();
+  </script>
 </body>
 </html>
