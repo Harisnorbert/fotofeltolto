@@ -83,23 +83,37 @@
 
     // Upload selected files via Netlify Function
     uploadBtn.addEventListener('click', async () => {
-      if (!selectedFiles.length) return;
-      const form = new FormData();
-      selectedFiles.forEach(f => form.append('files', f));
+  if (!selectedFiles.length) return alert('Kérlek válassz képeket.');
 
-      try {
-        const res = await fetch('/upload', { method:'POST', body: form });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Ismeretlen hiba');
-        selectedFiles = [];
-        fileInput.value = '';
-        renderPreview();
-        await loadGallery();
-      } catch(err) {
-        console.error('Feltöltési hiba:', err);
-        alert('Hiba: ' + err.message);
-      }
-    });
+  const form = new FormData();
+  selectedFiles.forEach(f => form.append('files', f));
+
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: form });
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      // ha nem JSON jött vissza, olvassuk text-ként
+      const text = await res.text();
+      throw new Error(text || `Hiba: ${res.status}`);
+    }
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Ismeretlen hiba');
+    }
+
+    // sikeres feltöltés
+    selectedFiles = [];
+    fileInput.value = '';
+    renderPreview();
+    await loadGallery();
+
+  } catch (err) {
+    console.error('Feltöltési hiba:', err);
+    alert('Feltöltési hiba:\n' + err.message);
+  }
+});
 
     // Download all images as ZIP
     downloadBtn.addEventListener('click', async () => {
