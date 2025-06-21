@@ -41,7 +41,7 @@
   <script type="module">
   // 1️⃣ Firebase SDK importálása
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
+  //import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
   import {
     getStorage,
     ref as sRef,
@@ -63,7 +63,7 @@
 
   // 3️⃣ Firebase inicializálása
   const app       = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
+  //const analytics = getAnalytics(app);
   const storage   = getStorage(app);
 
   // 4️⃣ DOM referenciák
